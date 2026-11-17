@@ -1,0 +1,247 @@
+@inherits LayoutComponentBase
+@inject AppStateService AppState
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="erp-app-container">
+    <!-- 1. Fixed Top Header (56px) -->
+    <header class="erp-top-header">
+        <div class="erp-header-left">
+            <DxButton IconCssClass="bi bi-list fs-5"
+                      RenderStyle="ButtonRenderStyle.Secondary"
+                      RenderStyleMode="ButtonRenderStyleMode.Text"
+                      Click="@AppState.ToggleSidebar"
+                      aria-label="Toggle Navigation Sidebar" />
+            
+            <a href="/" class="erp-brand-title">
+                <i class="bi bi-box-seam-fill text-primary"></i>
+                <span>APEX <span class="fw-light text-white-50">ERP</span></span>
+                <span class="erp-brand-badge">RAPPS2</span>
+            </a>
+        </div>
+
+        <div class="erp-header-right">
+            <!-- Active Tenant Quick Switcher Dropdown -->
+            <DxDropDownButton Text="@(AppState.CurrentCompany?.Code ?? "Company")"
+                              IconCssClass="bi bi-building me-1"
+                              RenderStyle="ButtonRenderStyle.Secondary"
+                              RenderStyleMode="ButtonRenderStyleMode.Outline"
+                              SizeMode="SizeMode.Small">
+                <Items>
+                    @foreach (var company in AppState.AvailableCompanies)
+                    {
+                        <DxDropDownButtonItem Text="@($"{company.Code} - {company.Name}")"
+                                              Click="@(() => AppState.SwitchCompanyAsync(company.Id))" />
+                    }
+                </Items>
+            </DxDropDownButton>
+
+            <!-- Active Facility Quick Switcher Dropdown -->
+            <DxDropDownButton Text="@(AppState.CurrentLocation?.Code ?? "Location")"
+                              IconCssClass="bi bi-geo-alt me-1"
+                              RenderStyle="ButtonRenderStyle.Secondary"
+                              RenderStyleMode="ButtonRenderStyleMode.Outline"
+                              SizeMode="SizeMode.Small">
+                <Items>
+                    @foreach (var loc in AppState.AvailableLocations)
+                    {
+                        <DxDropDownButtonItem Text="@($"{loc.Code} - {loc.Name}")"
+                                              Click="@(() => AppState.SwitchLocationAsync(loc.Id))" />
+                    }
+                </Items>
+            </DxDropDownButton>
+
+            <!-- Notification Bell with Popover/Drawer -->
+            <div class="position-relative">
+                <DxButton IconCssClass="bi bi-bell-fill"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          RenderStyleMode="ButtonRenderStyleMode.Text"
+                          Click="@ToggleNotifications"
+                          aria-label="Notifications" />
+                @if (AppState.UnreadNotificationsCount > 0)
+                {
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
+                        @AppState.UnreadNotificationsCount
+                    </span>
+                }
+            </div>
+
+            <!-- User Profile Dropdown Button -->
+            <DxDropDownButton Text="@(AppState.CurrentUser?.FullName ?? "Administrator")"
+                              IconCssClass="bi bi-person-circle me-1"
+                              RenderStyle="ButtonRenderStyle.Light"
+                              RenderStyleMode="ButtonRenderStyleMode.Contained"
+                              SizeMode="SizeMode.Small">
+                <Items>
+                    <DxDropDownButtonItem Text="@($"User: {AppState.CurrentUser?.Username}")" Enabled="false" />
+                    <DxDropDownButtonItem Text="@($"Role: {AppState.CurrentRole?.Name}")" Enabled="false" />
+                    <DxDropDownButtonItem BeginGroup="true" Text="Manage Profile" IconCssClass="bi bi-person-lines-fill" Click="@NavigateToProfile" />
+                    <DxDropDownButtonItem Text="User Preferences" IconCssClass="bi bi-sliders" Click="@NavigateToPreferences" />
+                    <DxDropDownButtonItem Text="Theme Settings" IconCssClass="bi bi-palette" Click="@NavigateToThemes" />
+                    <DxDropDownButtonItem BeginGroup="true" Text="Sign Out" IconCssClass="bi bi-box-arrow-right text-danger" Click="@PromptSignOut" />
+                </Items>
+            </DxDropDownButton>
+        </div>
+    </header>
+
+    <!-- 2. Middle Body Wrapper (Sidebar + Main Workspace) -->
+    <div class="erp-body-wrapper">
+        <NavMenu />
+
+        <main class="erp-workspace">
+            <ErrorBoundary @ref="_errorBoundary">
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent Context="exception">
+                    <div class="alert alert-danger shadow-sm my-4 p-4 border-0 rounded-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-exclamation-triangle-fill fs-2 me-3 text-danger"></i>
+                            <div>
+                                <h5 class="alert-heading mb-1">Critical Screen Rendering Error</h5>
+                                <p class="mb-0 small text-secondary">The ERP workspace caught an unhandled component exception.</p>
+                            </div>
+                        </div>
+                        <hr />
+                        <p class="small text-danger fw-semibold">@exception.Message</p>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-sm btn-danger" @onclick="RecoverWorkspace">
+                                <i class="bi bi-arrow-clockwise me-1"></i> Recover Screen
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => AppState.HandleGlobalErrorAsync(exception))">
+                                <i class="bi bi-bug me-1"></i> Dispatch Diagnostics to Log
+                            </button>
+                        </div>
+                    </div>
+                </ErrorContent>
+            </ErrorBoundary>
+        </main>
+    </div>
+
+    <!-- 3. Fixed Bottom Footer (32px) -->
+    <footer class="erp-bottom-footer">
+        <div class="erp-footer-left">
+            <span class="erp-status-indicator @GetStatusClass()"></span>
+            <span class="fw-semibold text-light">@AppState.FooterStatusText</span>
+        </div>
+
+        <div class="erp-footer-right">
+            <div class="erp-telemetry-item">
+                <i class="bi bi-building text-info"></i>
+                <span>Company:</span>
+                <span class="erp-telemetry-badge">@(AppState.CurrentCompany?.Code ?? "CORP-01")</span>
+            </div>
+
+            <div class="erp-telemetry-item">
+                <i class="bi bi-geo-alt text-warning"></i>
+                <span>Location:</span>
+                <span class="erp-telemetry-badge">@(AppState.CurrentLocation?.Code ?? "LOC-HQ")</span>
+            </div>
+
+            <div class="erp-telemetry-item">
+                <i class="bi bi-person-badge text-success"></i>
+                <span>User:</span>
+                <span class="erp-telemetry-badge">@(AppState.CurrentUser?.Username ?? "admin") (@(AppState.CurrentRole?.Name ?? "Admin"))</span>
+            </div>
+
+            <div class="erp-telemetry-item">
+                <i class="bi bi-clock-history text-primary"></i>
+                <span>Session:</span>
+                <span class="erp-telemetry-badge text-warning font-monospace">@AppState.SessionDuration.ToString(@"hh\:mm\:ss")</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 4. Global Overlays (Modals, Toasts, Progress, Banners) -->
+    <GlobalOverlay />
+
+    <!-- 5. Notifications Drawer Popup -->
+    <DxPopup Visible="@_showNotificationDrawer"
+             VisibleChanged="@((bool val) => _showNotificationDrawer = val)"
+             HeaderText="Enterprise Notification Feed"
+             Width="400px"
+             CloseOnOutsideClick="true"
+             ShowCloseButton="true">
+        <BodyTemplate>
+            <div class="p-2">
+                <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                    <span class="small text-muted">@AppState.Notifications.Count total alerts</span>
+                    <button class="btn btn-link btn-sm text-decoration-none p-0" @onclick="@AppState.MarkAllNotificationsAsRead">
+                        Mark all read
+                    </button>
+                </div>
+                <div class="list-group list-group-flush" style="max-height: 350px; overflow-y: auto;">
+                    @foreach (var note in AppState.Notifications)
+                    {
+                        <div class="list-group-item px-2 py-2 border-0 mb-1 rounded @(note.IsRead ? "bg-transparent" : "bg-light")">
+                            <div class="d-flex w-100 justify-content-between align-items-start">
+                                <h6 class="mb-1 small fw-bold text-dark">
+                                    <i class="bi bi-@(note.Icon) me-1 text-primary"></i> @note.Title
+                                </h6>
+                                <span class="badge @(note.IsRead ? "bg-secondary" : "bg-primary")" style="font-size: 0.6rem;">
+                                    @note.Category
+                                </span>
+                            </div>
+                            <p class="mb-1 text-secondary" style="font-size: 0.75rem;">@note.Description</p>
+                            <small class="text-muted" style="font-size: 0.65rem;">@note.CreatedAt.ToLocalTime().ToString("g")</small>
+                        </div>
+                    }
+                </div>
+            </div>
+        </BodyTemplate>
+    </DxPopup>
+</div>
+
+@code {
+    private ErrorBoundary? _errorBoundary;
+    private bool _showNotificationDrawer = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AppState.OnChange += StateHasChanged;
+        await AppState.InitializeAsync();
+    }
+
+    private void ToggleNotifications() => _showNotificationDrawer = !_showNotificationDrawer;
+
+    private void PromptSignOut()
+    {
+        AppState.ShowConfirmationModal(
+            title: "Sign Out of Enterprise Session",
+            message: "Are you sure you wish to terminate your active ERP session? Any unsaved work on open screens will be lost.",
+            onConfirm: async () =>
+            {
+                AppState.ShowLoading("Terminating circuit session...");
+                await Task.Delay(800);
+                AppState.HideLoading();
+                AppState.ShowToast("Session closed successfully", "Signed Out", ToastNotificationType.Info);
+                Navigation.NavigateTo("/", forceLoad: true);
+            },
+            confirmButtonText: "Sign Out",
+            cancelButtonText: "Stay Logged In"
+        );
+    }
+
+    private void NavigateToProfile() => Navigation.NavigateTo("/admin/users");
+    private void NavigateToPreferences() => Navigation.NavigateTo("/admin/themes");
+    private void NavigateToThemes() => Navigation.NavigateTo("/admin/themes");
+
+    private void RecoverWorkspace()
+    {
+        _errorBoundary?.Recover();
+        AppState.SetFooterStatus("Workspace Recovered", "Normal");
+    }
+
+    private string GetStatusClass() => AppState.FooterStatusLevel switch
+    {
+        "Busy" => "busy",
+        "Error" => "error",
+        _ => "ready"
+    };
+
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+    }
+}

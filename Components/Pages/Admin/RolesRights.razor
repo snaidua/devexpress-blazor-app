@@ -1,0 +1,205 @@
+@page "/admin/roles-rights"
+@inject IDbContextFactory<ErpDbContext> DbFactory
+@inject SecurityService SecurityService
+@inject AppStateService AppState
+
+<PageTitle>Roles & Rights Matrix - APEX ERP</PageTitle>
+
+<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-shield-check text-primary me-2"></i>Roles & Security Permissions Matrix
+            </h3>
+            <p class="text-secondary small mb-0">
+                Grant or restrict screen-level enterprise actions (<strong>View, Create, Edit, Delete, Export</strong>) per role via <strong>EF Core</strong>.
+            </p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <DxButton Text="Discard Changes"
+                      RenderStyle="ButtonRenderStyle.Secondary"
+                      RenderStyleMode="ButtonRenderStyleMode.Outline"
+                      Click="LoadMatrixForSelectedRoleAsync" />
+            <DxButton Text="Save Permissions Matrix"
+                      IconCssClass="bi bi-check2-circle"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Click="SaveMatrixAsync" />
+        </div>
+    </div>
+
+    <!-- Role Selection Bar -->
+    <div class="card shadow-sm border-0 p-3 mb-4 bg-white">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-dark mb-1">Target Security Role</label>
+                <DxComboBox Data="@_roles"
+                            Value="@_selectedRoleId"
+                            ValueChanged="@((int val) => OnRoleChangedAsync(val))"
+                            TextFieldName="Name"
+                            ValueFieldName="Id" />
+            </div>
+            <div class="col-md-8">
+                @{
+                    var currentRole = _roles.FirstOrDefault(r => r.Id == _selectedRoleId);
+                }
+                @if (currentRole != null)
+                {
+                    <div class="p-2 bg-light rounded border">
+                        <span class="small fw-bold text-dark d-block">Role Description:</span>
+                        <span class="small text-secondary">@currentRole.Description</span>
+                        @if (currentRole.IsSystem)
+                        {
+                            <span class="badge bg-warning text-dark ms-2 font-monospace">SYSTEM PROTECTED</span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Rights Matrix Grid -->
+    <div class="card shadow-sm border-0 p-3 bg-white">
+        @if (_isLoading)
+        {
+            <div class="text-center p-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="small text-muted mt-2">Loading Permission Matrix from RAPPS2...</p>
+            </div>
+        }
+        else
+        {
+            <DxGrid Data="@_matrix"
+                    KeyFieldName="PageId"
+                    PageSize="15"
+                    ShowSearchBox="true"
+                    CssClass="erp-grid">
+                <Columns>
+                    <DxGridDataColumn FieldName="Page.Title" Caption="ERP Module / Screen" MinWidth="220">
+                        <CellDisplayTemplate>
+                            @{
+                                var row = (AppRoleRight)context.DataItem;
+                            }
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-@(row.Page?.Icon ?? "circle") text-primary"></i>
+                                <div>
+                                    <span class="fw-bold">@(row.Page?.Title ?? "Unknown")</span>
+                                    <code class="d-block text-muted small">@(row.Page?.Route ?? "-")</code>
+                                </div>
+                            </div>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+
+                    <DxGridDataColumn Caption="Can View" Width="120px" TextAlignment="GridTextAlignment.Center">
+                        <CellDisplayTemplate>
+                            @{
+                                var row = (AppRoleRight)context.DataItem;
+                            }
+                            <DxCheckBox @bind-Checked="@row.CanView" />
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+
+                    <DxGridDataColumn Caption="Can Create" Width="120px" TextAlignment="GridTextAlignment.Center">
+                        <CellDisplayTemplate>
+                            @{
+                                var row = (AppRoleRight)context.DataItem;
+                            }
+                            <DxCheckBox @bind-Checked="@row.CanCreate" />
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+
+                    <DxGridDataColumn Caption="Can Edit" Width="120px" TextAlignment="GridTextAlignment.Center">
+                        <CellDisplayTemplate>
+                            @{
+                                var row = (AppRoleRight)context.DataItem;
+                            }
+                            <DxCheckBox @bind-Checked="@row.CanEdit" />
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+
+                    <DxGridDataColumn Caption="Can Delete" Width="120px" TextAlignment="GridTextAlignment.Center">
+                        <CellDisplayTemplate>
+                            @{
+                                var row = (AppRoleRight)context.DataItem;
+                            }
+                            <DxCheckBox @bind-Checked="@row.CanDelete" />
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+
+                    <DxGridDataColumn Caption="Can Export" Width="120px" TextAlignment="GridTextAlignment.Center">
+                        <CellDisplayTemplate>
+                            @{
+                                var row = (AppRoleRight)context.DataItem;
+                            }
+                            <DxCheckBox @bind-Checked="@row.CanExport" />
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                </Columns>
+            </DxGrid>
+        }
+    </div>
+</div>
+
+@code {
+    private List<AppRole> _roles = new();
+    private int _selectedRoleId;
+    private List<AppRoleRight> _matrix = new();
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var context = await DbFactory.CreateDbContextAsync();
+        _roles = await context.AppRoles.OrderBy(r => r.Name).ToListAsync();
+        if (_roles.Any())
+        {
+            _selectedRoleId = _roles.First().Id;
+            await LoadMatrixForSelectedRoleAsync();
+        }
+    }
+
+    private async Task OnRoleChangedAsync(int newRoleId)
+    {
+        _selectedRoleId = newRoleId;
+        await LoadMatrixForSelectedRoleAsync();
+    }
+
+    private async Task LoadMatrixForSelectedRoleAsync()
+    {
+        _isLoading = true;
+        AppState.SetFooterStatus("Loading Role Security Matrix...", "Busy");
+        try
+        {
+            _matrix = await SecurityService.GetRoleRightsMatrixAsync(_selectedRoleId);
+            AppState.SetFooterStatus("Matrix Loaded", "Normal");
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to load roles & rights matrix.");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SaveMatrixAsync()
+    {
+        AppState.ShowLoading("Persisting Role Rights Matrix to SQL Server...");
+        try
+        {
+            await SecurityService.SaveRoleRightsMatrixAsync(_selectedRoleId, _matrix);
+            AppState.ShowToast("Security rights matrix updated successfully", "Permissions Saved", ToastNotificationType.Success);
+            AppState.SetFooterStatus("Permissions Updated", "Normal");
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to save permissions matrix.");
+        }
+        finally
+        {
+            AppState.HideLoading();
+        }
+    }
+}
+

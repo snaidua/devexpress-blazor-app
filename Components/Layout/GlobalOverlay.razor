@@ -1,0 +1,190 @@
+@inject AppStateService AppState
+@implements IDisposable
+
+<!-- 1. Sticky Top Progress Bar -->
+@if (AppState.IsProgressBarVisible)
+{
+    <div style="position: fixed; top: 0; left: 0; width: 100%; z-index: 1090;">
+        <DxProgressBar Value="@AppState.ProgressPercentage"
+                       Max="100"
+                       Thickness="4px" />
+        @if (!string.IsNullOrEmpty(AppState.ProgressBarText))
+        {
+            <div style="position: fixed; top: 8px; right: 20px; font-size: 0.75rem; background: rgba(0,0,0,0.7); color: white; padding: 2px 8px; border-radius: 4px; z-index: 1091;">
+                @AppState.ProgressBarText (@AppState.ProgressPercentage%)
+            </div>
+        }
+    </div>
+}
+
+<!-- 2. Full-Screen Blocking Loading Panel -->
+<DxLoadingPanel Visible="@AppState.IsLoadingPanelVisible"
+                ApplyBackgroundShading="true"
+                Text="@AppState.LoadingPanelMessage"
+                PositionTarget="body" />
+
+<!-- 3. Dismissible Global Alert Banner -->
+@if (AppState.IsAlertBannerVisible)
+{
+    <div class="alert alert-@AppState.AlertBannerType alert-dismissible fade show m-3 shadow-sm border-0" role="alert" style="z-index: 1015;">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+            <div class="flex-grow-1">
+                @AppState.AlertBannerMessage
+            </div>
+            @if (AppState.AlertBannerDismissible)
+            {
+                <button type="button" class="btn-close" @onclick="AppState.DismissAlertBanner" aria-label="Close"></button>
+            }
+        </div>
+    </div>
+}
+
+<!-- 4. Global Modals (Confirmation, Alert, System Error) -->
+<DxPopup Visible="@AppState.IsModalVisible"
+         VisibleChanged="@((bool val) => { if (!val) AppState.CloseModal(); })"
+         HeaderText="@AppState.ModalTitle"
+         Width="550px"
+         CloseOnEscape="true"
+         CloseOnOutsideClick="false"
+         ShowCloseButton="true">
+    <BodyTemplate>
+        <div class="p-3">
+            <div class="d-flex align-items-start mb-3">
+                @if (AppState.ModalType == "Error")
+                {
+                    <div class="text-danger me-3 fs-1"><i class="bi bi-exclamation-octagon-fill"></i></div>
+                }
+                else if (AppState.ModalType == "Confirmation")
+                {
+                    <div class="text-warning me-3 fs-1"><i class="bi bi-question-circle-fill"></i></div>
+                }
+                else
+                {
+                    <div class="text-info me-3 fs-1"><i class="bi bi-info-circle-fill"></i></div>
+                }
+                <div class="flex-grow-1">
+                    <p class="mb-0 fs-6">@AppState.ModalMessage</p>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(AppState.ModalTechnicalDetails))
+            {
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-outline-secondary mb-2" type="button" @onclick="ToggleDetails">
+                        <i class="bi bi-code-slash me-1"></i> @(_showDetails ? "Hide Error Trace" : "Show Error Diagnostics")
+                    </button>
+                    @if (_showDetails)
+                    {
+                        <div class="card card-body bg-dark text-light font-monospace small" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.75rem;">
+                            @AppState.ModalTechnicalDetails
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <div class="d-flex justify-content-end gap-2 p-2 w-100 bg-light border-top">
+            @if (AppState.ModalType == "Confirmation")
+            {
+                <DxButton Text="@AppState.ModalCancelText"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="@AppState.CloseModal" />
+                <DxButton Text="@AppState.ModalConfirmText"
+                          RenderStyle="ButtonRenderStyle.Primary"
+                          Click="HandleConfirmAsync" />
+            }
+            else
+            {
+                <DxButton Text="@AppState.ModalConfirmText"
+                          RenderStyle="@(AppState.ModalType == "Error" ? ButtonRenderStyle.Danger : ButtonRenderStyle.Primary)"
+                          Click="@AppState.CloseModal" />
+            }
+        </div>
+    </FooterTemplate>
+</DxPopup>
+
+<!-- 5. Toast Notifications Overlay -->
+@if (_activeToasts.Any())
+{
+    <div class="erp-toast-container">
+        @foreach (var toast in _activeToasts.ToList())
+        {
+            <div class="erp-toast-item toast-@toast.Type.ToString().ToLowerInvariant()">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong class="small text-dark">
+                        <i class="@GetToastIcon(toast.Type) me-1"></i> @toast.Title
+                    </strong>
+                    <button type="button" class="btn-close btn-close-sm" style="font-size: 0.65rem;" @onclick="@(() => RemoveToast(toast.Id))"></button>
+                </div>
+                <div class="small text-secondary">
+                    @toast.Message
+                </div>
+                <div class="text-end text-muted" style="font-size: 0.65rem; margin-top: 4px;">
+                    @toast.Timestamp.ToLocalTime().ToString("HH:mm:ss")
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool _showDetails = false;
+    private readonly List<ToastNotificationItem> _activeToasts = new();
+
+    protected override void OnInitialized()
+    {
+        AppState.OnChange += StateHasChanged;
+        AppState.OnToastRequested += HandleToastRequested;
+    }
+
+    private void ToggleDetails() => _showDetails = !_showDetails;
+
+    private async Task HandleConfirmAsync()
+    {
+        var callback = AppState.ModalConfirmCallback;
+        AppState.CloseModal();
+        if (callback != null)
+        {
+            await callback.Invoke();
+        }
+    }
+
+    private void HandleToastRequested(ToastNotificationItem item)
+    {
+        _activeToasts.Add(item);
+        InvokeAsync(StateHasChanged);
+
+        // Auto remove after 5 seconds
+        _ = Task.Delay(5000).ContinueWith(_ =>
+        {
+            RemoveToast(item.Id);
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void RemoveToast(Guid id)
+    {
+        var toast = _activeToasts.FirstOrDefault(t => t.Id == id);
+        if (toast != null)
+        {
+            _activeToasts.Remove(toast);
+        }
+    }
+
+    private string GetToastIcon(ToastNotificationType type) => type switch
+    {
+        ToastNotificationType.Success => "bi bi-check-circle-fill text-success",
+        ToastNotificationType.Warning => "bi bi-exclamation-triangle-fill text-warning",
+        ToastNotificationType.Danger => "bi bi-x-circle-fill text-danger",
+        _ => "bi bi-info-circle-fill text-primary"
+    };
+
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+        AppState.OnToastRequested -= HandleToastRequested;
+    }
+}
+

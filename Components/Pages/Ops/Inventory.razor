@@ -1,0 +1,72 @@
+@page "/ops/inventory"
+@inject DashboardQueryService DashboardQuery
+@inject AppStateService AppState
+
+<PageTitle>Inventory & Stock Management - APEX ERP</PageTitle>
+
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-box-seam text-warning me-2"></i>Inventory & Stock Control
+            </h3>
+            <p class="text-secondary small mb-0">
+                Multi-facility warehouse balance tracking, reorder thresholds, and bin locations.
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-3 py-2 small">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> 3 Items Below Reorder Point
+            </span>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 p-3 bg-white">
+        <DxGrid Data="@_mockInventory"
+                PageSize="10"
+                ShowSearchBox="true"
+                ShowFilterRow="true"
+                CssClass="erp-grid">
+            <Columns>
+                <DxGridDataColumn FieldName="Sku" Caption="SKU Code" Width="130px">
+                    <CellDisplayTemplate>
+                        <span class="font-monospace fw-bold text-primary">@context.Value</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="Description" Caption="Item Description" MinWidth="220" />
+                <DxGridDataColumn FieldName="Category" Caption="Category" Width="170px" />
+                <DxGridDataColumn FieldName="QuantityOnHand" Caption="On Hand" Width="110px" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate>
+                        <span class="fw-bold">@context.Value</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="ReorderPoint" Caption="Reorder Pt" Width="110px" TextAlignment="GridTextAlignment.Right" />
+                <DxGridDataColumn FieldName="Facility" Caption="Warehouse" Width="140px" />
+                <DxGridDataColumn FieldName="Status" Caption="Status" Width="130px">
+                    <CellDisplayTemplate>
+                        @{
+                            var item = (InventoryItem)context.DataItem;
+                        }
+                        <span class="badge @(item.QuantityOnHand <= item.ReorderPoint ? "bg-danger" : "bg-success")">
+                            @(item.QuantityOnHand <= item.ReorderPoint ? "Critical Stock" : "Sufficient")
+                        </span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+    </div>
+</div>
+
+@code {
+    private record InventoryItem(string Sku, string Description, string Category, int QuantityOnHand, int ReorderPoint, string Facility);
+
+    private readonly List<InventoryItem> _mockInventory = new()
+    {
+        new("SKU-9901-A", "High-Precision Servo Actuator 24V", "Robotics", 14, 25, "LOC-PLANT1"),
+        new("SKU-8820-C", "Solid State Inertial Measurement Unit", "Sensors", 4, 15, "LOC-HQ"),
+        new("SKU-4412-M", "Turbine Hydraulic Pressure Seal Kit", "Mechanical Spares", 280, 50, "LOC-DC1"),
+        new("SKU-3109-F", "Fiber Optic Transceiver 100G Industrial", "Networking", 88, 30, "LOC-DC1"),
+        new("SKU-1092-X", "Silicon Carbide Power Inverter Module", "Power Systems", 6, 20, "LOC-PLANT1")
+    };
+}
+

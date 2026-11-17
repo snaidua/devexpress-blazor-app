@@ -1,0 +1,138 @@
+@inject SecurityService SecurityService
+@inject AppStateService AppState
+@inject DashboardQueryService DashboardQueryService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="erp-sidebar @(AppState.SidebarExpanded ? "" : "collapsed")">
+    <div class="erp-sidebar-header d-flex justify-content-between align-items-center">
+        <span>Navigation Menu</span>
+        <span class="badge bg-secondary font-monospace">@AppState.CurrentRole?.Name</span>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="p-3 text-center text-muted small">
+            <span class="spinner-border spinner-border-sm me-2"></span> Loading hierarchy...
+        </div>
+    }
+    else
+    {
+        <div class="p-2">
+            <!-- DevExpress TreeView Dynamic Navigation Menu -->
+            <DxTreeView AllowSelectNodes="true"
+                        AnimationType="LayoutAnimationType.Slide">
+                <Nodes>
+                    @foreach (var parent in _rootPages)
+                    {
+                        var children = _childPages.Where(c => c.ParentId == parent.Id).OrderBy(c => c.SortOrder).ToList();
+                        if (children.Any())
+                        {
+                            <DxTreeViewNode Text="@parent.Title"
+                                            IconCssClass="@GetIconCss(parent.Icon)"
+                                            Expanded="true">
+                                <Nodes>
+                                    @foreach (var child in children)
+                                    {
+                                        <DxTreeViewNode Text="@child.Title"
+                                                        NavigateUrl="@child.Route"
+                                                        IconCssClass="@GetIconCss(child.Icon)"
+                                                        BadgeText="@GetBadgeText(child)"
+                                                        BadgeCssClass="@child.BadgeColor" />
+                                    }
+                                </Nodes>
+                            </DxTreeViewNode>
+                        }
+                        else
+                        {
+                            <DxTreeViewNode Text="@parent.Title"
+                                            NavigateUrl="@parent.Route"
+                                            IconCssClass="@GetIconCss(parent.Icon)"
+                                            BadgeText="@GetBadgeText(parent)"
+                                            BadgeCssClass="@parent.BadgeColor" />
+                        }
+                    }
+                </Nodes>
+            </DxTreeView>
+        </div>
+    }
+
+    <div class="mt-auto p-3 border-top border-secondary border-opacity-25 small text-secondary">
+        <div class="d-flex align-items-center justify-content-between mb-1">
+            <span>Dapper Engine:</span>
+            <span class="badge bg-success bg-opacity-75 font-monospace">ACTIVE</span>
+        </div>
+        <div class="d-flex align-items-center justify-content-between">
+            <span>EF Context Factory:</span>
+            <span class="badge bg-info bg-opacity-75 font-monospace">ONLINE</span>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _isLoading = true;
+    private List<AppPage> _allAuthorizedPages = new();
+    private List<AppPage> _rootPages = new();
+    private List<AppPage> _childPages = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        AppState.OnChange += HandleAppStateChanged;
+        await LoadNavigationAsync();
+    }
+
+    private async Task LoadNavigationAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            var roleId = AppState.CurrentRole?.Id ?? 1;
+            _allAuthorizedPages = await SecurityService.GetAuthorizedPagesAsync(roleId);
+
+            _rootPages = _allAuthorizedPages
+                .Where(p => p.ParentId == null)
+                .OrderBy(p => p.SortOrder)
+                .ToList();
+
+            _childPages = _allAuthorizedPages
+                .Where(p => p.ParentId != null)
+                .OrderBy(p => p.SortOrder)
+                .ToList();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void HandleAppStateChanged()
+    {
+        InvokeAsync(async () =>
+        {
+            await LoadNavigationAsync();
+            StateHasChanged();
+        });
+    }
+
+    private string GetBadgeText(AppPage page)
+    {
+        if (!string.IsNullOrEmpty(page.BadgeDapperQuery) &&
+            AppState.DynamicBadgeCounts.TryGetValue(page.BadgeDapperQuery, out var count))
+        {
+            return count > 0 ? count.ToString() : string.Empty;
+        }
+        return page.BadgeText ?? string.Empty;
+    }
+
+    private string GetIconCss(string? icon)
+    {
+        if (string.IsNullOrWhiteSpace(icon)) return "bi bi-circle";
+        if (icon.StartsWith("bi-")) return $"bi {icon}";
+        return $"bi bi-{icon}";
+    }
+
+    public void Dispose()
+    {
+        AppState.OnChange -= HandleAppStateChanged;
+    }
+}

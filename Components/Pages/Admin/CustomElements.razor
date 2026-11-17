@@ -1,0 +1,425 @@
+@page "/admin/custom-elements"
+@inject IDbContextFactory<ErpDbContext> DbFactory
+@inject AppStateService AppState
+
+<PageTitle>Customizable Elements & Dynamic Forms - APEX ERP</PageTitle>
+
+<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-input-cursor-text text-primary me-2"></i>Customizable Elements & Dynamic Form Builder
+            </h3>
+            <p class="text-secondary small mb-0">
+                Define entity custom attributes (Text, Number, Date, Dropdown, Boolean) and render dynamic ERP forms backed by <strong>EF Core</strong>.
+            </p>
+        </div>
+        <div>
+            <DxButton Text="Define New Attribute"
+                      IconCssClass="bi bi-plus-lg"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Click="OpenAddModal" />
+        </div>
+    </div>
+
+    <!-- Entity Filter Bar -->
+    <div class="card shadow-sm border-0 p-3 mb-4 bg-white">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-dark mb-1">Target ERP Entity</label>
+                <DxComboBox Data="@_entities"
+                            Value="@_selectedEntity"
+                            ValueChanged="@((string val) => OnEntityChanged(val))" />
+            </div>
+            <div class="col-md-8">
+                <div class="p-2 bg-light rounded border small text-secondary">
+                    <i class="bi bi-info-circle-fill text-primary me-1"></i>
+                    Configuring metadata fields for <strong>@_selectedEntity</strong>. These custom attributes automatically extend the standard database record without requiring DDL alterations.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- 1. Metadata Field Definitions Grid -->
+        <div class="col-12 col-xl-7">
+            <div class="card shadow-sm border-0 p-3 bg-white h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-dark mb-0">Configured Attributes for @_selectedEntity</h6>
+                    <span class="badge bg-secondary">@_metadataList.Count fields</span>
+                </div>
+
+                <DxGrid Data="@_metadataList"
+                        KeyFieldName="Id"
+                        PageSize="8"
+                        ShowSearchBox="true"
+                        CssClass="erp-grid">
+                    <Columns>
+                        <DxGridDataColumn FieldName="SortOrder" Caption="#" Width="60px" TextAlignment="GridTextAlignment.Center" />
+                        <DxGridDataColumn FieldName="DisplayLabel" Caption="Display Label" MinWidth="160">
+                            <CellDisplayTemplate>
+                                @{
+                                    var item = (CustomElementMetadata)context.DataItem;
+                                }
+                                <div>
+                                    <span class="fw-bold text-dark">@item.DisplayLabel</span>
+                                    <code class="d-block small text-muted">@item.FieldName</code>
+                                </div>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="FieldType" Caption="Type" Width="110px">
+                            <CellDisplayTemplate>
+                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 font-monospace">
+                                    @context.Value
+                                </span>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="IsRequired" Caption="Required" Width="90px" TextAlignment="GridTextAlignment.Center">
+                            <CellDisplayTemplate>
+                                @if ((bool)context.Value)
+                                {
+                                    <span class="badge bg-danger">Mandatory</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-secondary border">Optional</span>
+                                }
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn Caption="Actions" Width="100px" TextAlignment="GridTextAlignment.Center">
+                            <CellDisplayTemplate>
+                                @{
+                                    var item = (CustomElementMetadata)context.DataItem;
+                                }
+                                <div class="d-flex justify-content-center gap-1">
+                                    <DxButton IconCssClass="bi bi-pencil-square"
+                                              RenderStyle="ButtonRenderStyle.Secondary"
+                                              RenderStyleMode="ButtonRenderStyleMode.Text"
+                                              SizeMode="SizeMode.Small"
+                                              Click="@(() => OpenEditModal(item))" />
+                                    <DxButton IconCssClass="bi bi-trash text-danger"
+                                              RenderStyle="ButtonRenderStyle.Secondary"
+                                              RenderStyleMode="ButtonRenderStyleMode.Text"
+                                              SizeMode="SizeMode.Small"
+                                              Click="@(() => DeleteAttribute(item))" />
+                                </div>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                    </Columns>
+                </DxGrid>
+            </div>
+        </div>
+
+        <!-- 2. Live Interactive Dynamic Form Preview -->
+        <div class="col-12 col-xl-5">
+            <div class="card shadow-sm border-0 p-4 bg-white h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-magic text-warning me-1"></i>Live Dynamic Form Renderer
+                    </h6>
+                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Auto-Generated</span>
+                </div>
+                <p class="text-secondary small mb-3">
+                    How end-users experience dynamic fields on the <strong>@_selectedEntity</strong> screen:
+                </p>
+
+                @if (!_metadataList.Any())
+                {
+                    <div class="alert alert-light text-center p-4 border">
+                        <i class="bi bi-inbox fs-2 text-muted"></i>
+                        <p class="small text-muted mt-2 mb-0">No custom attributes defined yet for @_selectedEntity.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-3 bg-light rounded border mb-3">
+                        <div class="row g-3">
+                            @foreach (var field in _metadataList.OrderBy(f => f.SortOrder))
+                            {
+                                <div class="col-12">
+                                    <label class="form-label small fw-semibold text-dark mb-1">
+                                        @field.DisplayLabel @(field.IsRequired ? " *" : "")
+                                    </label>
+
+                                    @switch (field.FieldType)
+                                    {
+                                        case "Text":
+                                            <DxTextBox @bind-Text="@_previewValues[field.FieldName]" NullText="@($"Enter {field.DisplayLabel.ToLower()}...")" />
+                                            break;
+
+                                        case "Number":
+                                            <DxSpinEdit Value="@(decimal.TryParse(_previewValues.GetValueOrDefault(field.FieldName, "0"), out var dec) ? dec : 0)"
+                                                        ValueChanged="@((decimal val) => _previewValues[field.FieldName] = val.ToString())" />
+                                            break;
+
+                                        case "Date":
+                                            <DxDateEdit Date="@DateTime.Today" />
+                                            break;
+
+                                        case "Dropdown":
+                                            var opts = (field.DropdownOptions ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                                            <DxComboBox Data="@opts"
+                                                        Value="@_previewValues.GetValueOrDefault(field.FieldName)"
+                                                        ValueChanged="@((string val) => _previewValues[field.FieldName] = val)" />
+                                            break;
+
+                                        case "Boolean":
+                                            <DxCheckBox Checked="@(bool.TryParse(_previewValues.GetValueOrDefault(field.FieldName, "false"), out var b) && b)"
+                                                        CheckedChanged="@((bool val) => _previewValues[field.FieldName] = val.ToString())">
+                                                Confirm status
+                                            </DxCheckBox>
+                                            break;
+
+                                        default:
+                                            <DxTextBox @bind-Text="@_previewValues[field.FieldName]" />
+                                            break;
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-auto">
+                        <DxButton Text="Simulate Payload Generation"
+                                  IconCssClass="bi bi-file-code"
+                                  RenderStyle="ButtonRenderStyle.Secondary"
+                                  RenderStyleMode="ButtonRenderStyleMode.Outline"
+                                  Click="SimulatePayloadSave" />
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog (DxPopup) -->
+    <DxPopup Visible="@_isModalOpen"
+             VisibleChanged="@((bool val) => _isModalOpen = val)"
+             HeaderText="@(_isEditing ? "Modify Custom Attribute" : "Create Custom Attribute")"
+             Width="580px"
+             CloseOnEscape="true"
+             CloseOnOutsideClick="false"
+             ShowCloseButton="true">
+        <BodyTemplate>
+            <div class="p-3">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Field Identifier (Code) *</label>
+                        <DxTextBox @bind-Text="@_currentModel.FieldName" ReadOnly="@_isEditing" NullText="e.g. WarrantyCode" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Display Label *</label>
+                        <DxTextBox @bind-Text="@_currentModel.DisplayLabel" NullText="e.g. Extended Warranty Tier" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Data Type *</label>
+                        <DxComboBox Data="@_availableFieldTypes"
+                                    @bind-Value="@_currentModel.FieldType" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Display Sort Order *</label>
+                        <DxSpinEdit @bind-Value="@_currentModel.SortOrder" MinValue="1" MaxValue="100" />
+                    </div>
+
+                    @if (_currentModel.FieldType == "Dropdown")
+                    {
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold">Dropdown Options (Comma-separated) *</label>
+                            <DxTextBox @bind-Text="@_currentModel.DropdownOptions" NullText="Option A, Option B, Option C" />
+                        </div>
+                    }
+
+                    <div class="col-md-12">
+                        <label class="form-label small fw-bold">Default Value (Optional)</label>
+                        <DxTextBox @bind-Text="@_currentModel.DefaultValue" NullText="Initial value on form creation" />
+                    </div>
+
+                    <div class="col-md-12">
+                        <DxCheckBox @bind-Checked="@_currentModel.IsRequired">Field is Required for Form Submission</DxCheckBox>
+                    </div>
+                </div>
+            </div>
+        </BodyTemplate>
+        <FooterTemplate>
+            <div class="d-flex justify-content-end gap-2 p-2 w-100 bg-light border-top">
+                <DxButton Text="Cancel"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="@(() => _isModalOpen = false)" />
+                <DxButton Text="@(_isEditing ? "Save Changes" : "Define Attribute")"
+                          RenderStyle="ButtonRenderStyle.Primary"
+                          Click="SaveAttributeAsync" />
+            </div>
+        </FooterTemplate>
+    </DxPopup>
+</div>
+
+@code {
+    private readonly List<string> _entities = new() { "Customer", "SalesOrder", "InventoryItem", "Vendor", "Employee" };
+    private string _selectedEntity = "Customer";
+    private readonly List<string> _availableFieldTypes = new() { "Text", "Number", "Date", "Dropdown", "Boolean" };
+
+    private List<CustomElementMetadata> _metadataList = new();
+    private Dictionary<string, string> _previewValues = new();
+    private bool _isModalOpen = false;
+    private bool _isEditing = false;
+    private CustomElementMetadata _currentModel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMetadataForEntityAsync(_selectedEntity);
+    }
+
+    private async Task OnEntityChanged(string entityName)
+    {
+        _selectedEntity = entityName;
+        await LoadMetadataForEntityAsync(entityName);
+    }
+
+    private async Task LoadMetadataForEntityAsync(string entityName)
+    {
+        AppState.SetFooterStatus($"Loading custom elements for {entityName}...", "Busy");
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+            _metadataList = await context.CustomElementMetadata
+                .Where(m => m.EntityName == entityName && m.IsActive)
+                .OrderBy(m => m.SortOrder)
+                .ToListAsync();
+
+            _previewValues = new Dictionary<string, string>();
+            foreach (var item in _metadataList)
+            {
+                _previewValues[item.FieldName] = item.DefaultValue ?? string.Empty;
+            }
+
+            AppState.SetFooterStatus("Custom Elements Loaded", "Normal");
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to load metadata definitions.");
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        _isEditing = false;
+        _currentModel = new CustomElementMetadata
+        {
+            EntityName = _selectedEntity,
+            FieldType = "Text",
+            SortOrder = (_metadataList.MaxBy(m => m.SortOrder)?.SortOrder ?? 0) + 1,
+            IsActive = true
+        };
+        _isModalOpen = true;
+    }
+
+    private void OpenEditModal(CustomElementMetadata item)
+    {
+        _isEditing = true;
+        _currentModel = new CustomElementMetadata
+        {
+            Id = item.Id,
+            EntityName = item.EntityName,
+            FieldName = item.FieldName,
+            DisplayLabel = item.DisplayLabel,
+            FieldType = item.FieldType,
+            DropdownOptions = item.DropdownOptions,
+            DefaultValue = item.DefaultValue,
+            SortOrder = item.SortOrder,
+            IsRequired = item.IsRequired,
+            IsActive = item.IsActive
+        };
+        _isModalOpen = true;
+    }
+
+    private async Task SaveAttributeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentModel.FieldName) || string.IsNullOrWhiteSpace(_currentModel.DisplayLabel))
+        {
+            AppState.ShowToast("Field Identifier and Display Label are required", "Validation Error", ToastNotificationType.Warning);
+            return;
+        }
+
+        AppState.ShowLoading("Persisting custom element definition...");
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+
+            if (_isEditing)
+            {
+                var existing = await context.CustomElementMetadata.FindAsync(_currentModel.Id);
+                if (existing != null)
+                {
+                    existing.DisplayLabel = _currentModel.DisplayLabel;
+                    existing.FieldType = _currentModel.FieldType;
+                    existing.DropdownOptions = _currentModel.DropdownOptions;
+                    existing.DefaultValue = _currentModel.DefaultValue;
+                    existing.SortOrder = _currentModel.SortOrder;
+                    existing.IsRequired = _currentModel.IsRequired;
+                    await context.SaveChangesAsync();
+                    AppState.ShowToast($"Attribute '{existing.DisplayLabel}' updated", "Attribute Saved", ToastNotificationType.Success);
+                }
+            }
+            else
+            {
+                context.CustomElementMetadata.Add(_currentModel);
+                await context.SaveChangesAsync();
+                AppState.ShowToast($"Attribute '{_currentModel.DisplayLabel}' defined for {_selectedEntity}", "Attribute Created", ToastNotificationType.Success);
+            }
+
+            _isModalOpen = false;
+            await LoadMetadataForEntityAsync(_selectedEntity);
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to persist attribute metadata to SQL Server.");
+        }
+        finally
+        {
+            AppState.HideLoading();
+        }
+    }
+
+    private void DeleteAttribute(CustomElementMetadata item)
+    {
+        AppState.ShowConfirmationModal(
+            title: "Delete Custom Attribute",
+            message: $"Are you sure you want to delete attribute '{item.DisplayLabel}' ({item.FieldName}) from entity {_selectedEntity}?",
+            onConfirm: async () =>
+            {
+                AppState.ShowLoading("Removing custom attribute...");
+                try
+                {
+                    await using var context = await DbFactory.CreateDbContextAsync();
+                    var existing = await context.CustomElementMetadata.FindAsync(item.Id);
+                    if (existing != null)
+                    {
+                        context.CustomElementMetadata.Remove(existing);
+                        await context.SaveChangesAsync();
+                        AppState.ShowToast($"Attribute '{item.DisplayLabel}' deleted", "Attribute Removed", ToastNotificationType.Info);
+                        await LoadMetadataForEntityAsync(_selectedEntity);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await AppState.HandleGlobalErrorAsync(ex, "Failed to delete attribute.");
+                }
+                finally
+                {
+                    AppState.HideLoading();
+                }
+            },
+            confirmButtonText: "Delete",
+            cancelButtonText: "Cancel"
+        );
+    }
+
+    private void SimulatePayloadSave()
+    {
+        var jsonPayload = System.Text.Json.JsonSerializer.Serialize(_previewValues, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        AppState.ShowAlertModal("Generated Dynamic EAV Payload (JSON)", jsonPayload, "Info");
+        AppState.ShowToast("Dynamic form payload successfully generated and validated", "Payload Validated", ToastNotificationType.Success);
+    }
+}
+

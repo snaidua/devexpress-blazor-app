@@ -1,0 +1,359 @@
+@page "/admin/pages"
+@inject IDbContextFactory<ErpDbContext> DbFactory
+@inject AppStateService AppState
+
+<PageTitle>Navigation & Page Hierarchy - APEX ERP</PageTitle>
+
+<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-diagram-3-fill text-primary me-2"></i>Pages & Navigation Architecture
+            </h3>
+            <p class="text-secondary small mb-0">
+                Configure ERP screen routes, hierarchical menu trees, visual icons, and dynamic badge queries managed in <strong>AppPages</strong>.
+            </p>
+        </div>
+        <div>
+            <DxButton Text="Add Menu Item"
+                      IconCssClass="bi bi-plus-circle-fill"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Click="OpenAddModal" />
+        </div>
+    </div>
+
+    <!-- DxGrid Pages -->
+    <div class="card shadow-sm border-0 p-3 bg-white">
+        <DxGrid Data="@_pages"
+                KeyFieldName="Id"
+                PageSize="10"
+                ShowFilterRow="true"
+                ShowSearchBox="true"
+                CssClass="erp-grid">
+            <Columns>
+                <DxGridDataColumn FieldName="SortOrder" Caption="Order" Width="80px" TextAlignment="GridTextAlignment.Center" />
+                <DxGridDataColumn FieldName="Title" Caption="Page / Menu Title" MinWidth="180">
+                    <CellDisplayTemplate>
+                        @{
+                            var pageNode = (AppPage)context.DataItem;
+                        }
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-@(pageNode.Icon) text-primary fs-5"></i>
+                            <div>
+                                <span class="fw-bold text-dark">@pageNode.Title</span>
+                                @if (pageNode.Parent != null)
+                                {
+                                    <small class="text-muted d-block">Parent: @pageNode.Parent.Title</small>
+                                }
+                            </div>
+                        </div>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="Route" Caption="Route" Width="160px">
+                    <CellDisplayTemplate>
+                        <code class="text-secondary">@context.Value</code>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="BadgeText" Caption="Badge" Width="130px">
+                    <CellDisplayTemplate>
+                        @{
+                            var pageNode = (AppPage)context.DataItem;
+                        }
+                        @if (!string.IsNullOrEmpty(pageNode.BadgeText) || !string.IsNullOrEmpty(pageNode.BadgeDapperQuery))
+                        {
+                            <span class="@(pageNode.BadgeColor ?? "badge bg-primary")">
+                                @(pageNode.BadgeText ?? pageNode.BadgeDapperQuery)
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">-</span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="BadgeDapperQuery" Caption="Dapper Badge Key" Width="170px">
+                    <CellDisplayTemplate>
+                        @if (!string.IsNullOrEmpty((string?)context.Value))
+                        {
+                            <span class="badge bg-light text-dark border font-monospace">@context.Value</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">None</span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="IsActive" Caption="Status" Width="100px">
+                    <CellDisplayTemplate>
+                        @if ((bool)context.Value)
+                        {
+                            <span class="badge bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Disabled</span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="Actions" Width="120px" TextAlignment="GridTextAlignment.Center">
+                    <CellDisplayTemplate>
+                        @{
+                            var pageNode = (AppPage)context.DataItem;
+                        }
+                        <div class="d-flex justify-content-center gap-1">
+                            <DxButton IconCssClass="bi bi-pencil-square"
+                                      RenderStyle="ButtonRenderStyle.Secondary"
+                                      RenderStyleMode="ButtonRenderStyleMode.Text"
+                                      SizeMode="SizeMode.Small"
+                                      Click="@(() => OpenEditModal(pageNode))" />
+                            <DxButton IconCssClass="bi bi-trash text-danger"
+                                      RenderStyle="ButtonRenderStyle.Secondary"
+                                      RenderStyleMode="ButtonRenderStyleMode.Text"
+                                      SizeMode="SizeMode.Small"
+                                      Click="@(() => ConfirmDeletePage(pageNode))" />
+                        </div>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+    </div>
+
+    <!-- Modal Dialog (DxPopup) -->
+    <DxPopup Visible="@_isModalOpen"
+             VisibleChanged="@((bool val) => _isModalOpen = val)"
+             HeaderText="@(_isEditing ? "Modify Navigation Node" : "Define New Navigation Node")"
+             Width="600px"
+             CloseOnEscape="true"
+             CloseOnOutsideClick="false"
+             ShowCloseButton="true">
+        <BodyTemplate>
+            <div class="p-3">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label small fw-bold">Menu Title *</label>
+                        <DxTextBox @bind-Text="@_currentPageModel.Title" NullText="e.g. Warehouse Analytics" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Sort Order *</label>
+                        <DxSpinEdit @bind-Value="@_currentPageModel.SortOrder" MinValue="0" MaxValue="1000" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Route Path *</label>
+                        <DxTextBox @bind-Text="@_currentPageModel.Route" NullText="e.g. /ops/warehouse or #" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Bootstrap Icon (without 'bi-')</label>
+                        <DxTextBox @bind-Text="@_currentPageModel.Icon" NullText="e.g. box, chart-line, gear" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label small fw-bold">Parent Menu Node</label>
+                        <DxComboBox Data="@_parentOptions"
+                                    Value="@_currentPageModel.ParentId"
+                                    ValueChanged="@((int? val) => _currentPageModel.ParentId = val)"
+                                    TextFieldName="Title"
+                                    ValueFieldName="Id"
+                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Static Badge Text</label>
+                        <DxTextBox @bind-Text="@_currentPageModel.BadgeText" NullText="e.g. NEW, 3" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Badge CSS Style</label>
+                        <DxTextBox @bind-Text="@_currentPageModel.BadgeColor" NullText="e.g. badge bg-success" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label small fw-bold">Dynamic Dapper Query Key (Optional)</label>
+                        <DxTextBox @bind-Text="@_currentPageModel.BadgeDapperQuery" NullText="e.g. INVENTORY_ALERT, PENDING_ORDERS" />
+                        <small class="text-muted">When provided, the badge count is queried dynamically via Dapper.</small>
+                    </div>
+                    <div class="col-md-12">
+                        <DxCheckBox @bind-Checked="@_currentPageModel.IsActive">Menu Node Visible and Active</DxCheckBox>
+                    </div>
+                </div>
+            </div>
+        </BodyTemplate>
+        <FooterTemplate>
+            <div class="d-flex justify-content-end gap-2 p-2 w-100 bg-light border-top">
+                <DxButton Text="Cancel"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="@(() => _isModalOpen = false)" />
+                <DxButton Text="@(_isEditing ? "Save Changes" : "Create Node")"
+                          RenderStyle="ButtonRenderStyle.Primary"
+                          Click="SavePageAsync" />
+            </div>
+        </FooterTemplate>
+    </DxPopup>
+</div>
+
+@code {
+    private List<AppPage> _pages = new();
+    private List<AppPage> _parentOptions = new();
+    private bool _isModalOpen = false;
+    private bool _isEditing = false;
+    private AppPage _currentPageModel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        AppState.SetFooterStatus("Loading Navigation Pages...", "Busy");
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+            _pages = await context.AppPages
+                .Include(p => p.Parent)
+                .OrderBy(p => p.SortOrder)
+                .ToListAsync();
+
+            _parentOptions = _pages.Where(p => p.ParentId == null).ToList();
+            AppState.SetFooterStatus("Pages Architecture Loaded", "Normal");
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to load page architecture from SQL Server.");
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        _isEditing = false;
+        _currentPageModel = new AppPage
+        {
+            SortOrder = (_pages.MaxBy(p => p.SortOrder)?.SortOrder ?? 0) + 1,
+            Icon = "grid",
+            Route = "/",
+            IsActive = true
+        };
+        _isModalOpen = true;
+    }
+
+    private void OpenEditModal(AppPage page)
+    {
+        _isEditing = true;
+        _currentPageModel = new AppPage
+        {
+            Id = page.Id,
+            Title = page.Title,
+            Route = page.Route,
+            Icon = page.Icon,
+            ParentId = page.ParentId,
+            BadgeText = page.BadgeText,
+            BadgeColor = page.BadgeColor,
+            BadgeDapperQuery = page.BadgeDapperQuery,
+            SortOrder = page.SortOrder,
+            IsActive = page.IsActive
+        };
+        _isModalOpen = true;
+    }
+
+    private async Task SavePageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentPageModel.Title) || string.IsNullOrWhiteSpace(_currentPageModel.Route))
+        {
+            AppState.ShowToast("Page Title and Route are required", "Validation Error", ToastNotificationType.Warning);
+            return;
+        }
+
+        AppState.ShowLoading("Persisting navigation changes...");
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+
+            if (_isEditing)
+            {
+                var existing = await context.AppPages.FindAsync(_currentPageModel.Id);
+                if (existing != null)
+                {
+                    existing.Title = _currentPageModel.Title;
+                    existing.Route = _currentPageModel.Route;
+                    existing.Icon = _currentPageModel.Icon;
+                    existing.ParentId = _currentPageModel.ParentId;
+                    existing.BadgeText = _currentPageModel.BadgeText;
+                    existing.BadgeColor = _currentPageModel.BadgeColor;
+                    existing.BadgeDapperQuery = _currentPageModel.BadgeDapperQuery;
+                    existing.SortOrder = _currentPageModel.SortOrder;
+                    existing.IsActive = _currentPageModel.IsActive;
+
+                    await context.SaveChangesAsync();
+                    AppState.ShowToast($"Page '{existing.Title}' updated", "Navigation Updated", ToastNotificationType.Success);
+                }
+            }
+            else
+            {
+                _currentPageModel.CreatedAt = DateTime.UtcNow;
+                context.AppPages.Add(_currentPageModel);
+                await context.SaveChangesAsync();
+
+                // Automatically grant View right to Administrator role
+                var adminRole = await context.AppRoles.FirstOrDefaultAsync(r => r.Name == "Administrator");
+                if (adminRole != null)
+                {
+                    context.AppRoleRights.Add(new AppRoleRight
+                    {
+                        RoleId = adminRole.Id,
+                        PageId = _currentPageModel.Id,
+                        CanView = true,
+                        CanCreate = true,
+                        CanEdit = true,
+                        CanDelete = true,
+                        CanExport = true
+                    });
+                    await context.SaveChangesAsync();
+                }
+
+                AppState.ShowToast($"Navigation item '{_currentPageModel.Title}' created", "Page Created", ToastNotificationType.Success);
+            }
+
+            _isModalOpen = false;
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to persist navigation node.");
+        }
+        finally
+        {
+            AppState.HideLoading();
+        }
+    }
+
+    private void ConfirmDeletePage(AppPage page)
+    {
+        AppState.ShowConfirmationModal(
+            title: "Delete Navigation Node",
+            message: $"Are you sure you want to remove '{page.Title}' ({page.Route})? This will also remove associated role permissions.",
+            onConfirm: async () =>
+            {
+                AppState.ShowLoading("Removing menu item...");
+                try
+                {
+                    await using var context = await DbFactory.CreateDbContextAsync();
+                    var existing = await context.AppPages.FindAsync(page.Id);
+                    if (existing != null)
+                    {
+                        context.AppPages.Remove(existing);
+                        await context.SaveChangesAsync();
+                        AppState.ShowToast($"Page '{page.Title}' removed", "Page Deleted", ToastNotificationType.Info);
+                        await LoadDataAsync();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await AppState.HandleGlobalErrorAsync(ex, "Failed to delete page node.");
+                }
+                finally
+                {
+                    AppState.HideLoading();
+                }
+            },
+            confirmButtonText: "Delete",
+            cancelButtonText: "Cancel"
+        );
+    }
+}

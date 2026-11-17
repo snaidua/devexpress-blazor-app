@@ -1,0 +1,59 @@
+### Role & Objective
+Act as a Senior .NET & DevExpress Blazor Solutions Architect. Generate a complete, production-ready **Enterprise ERP Startup Boilerplate** using **.NET 8/9 Blazor Web App (Interactive Server)**, **DevExpress Blazor (`DevExpress.Blazor`)**, and a **Hybrid Data Access Layer (Entity Framework Core + Dapper)** backed by **Microsoft SQL Server**.
+
+---
+
+### 1. Hybrid Database & Infrastructure Configuration
+- **Database Provider:** Microsoft SQL Server (`Microsoft.EntityFrameworkCore.SqlServer` + `Dapper` + `Microsoft.Data.SqlClient`)
+- **Connection String (`appsettings.json`):**
+  `"DefaultConnection": "Server=172.16.50.12;Database=RAPPS2;User Id=sa;Password=sqladmin123*;TrustServerCertificate=True;MultipleActiveResultSets=true;"`
+- **Hybrid Data Strategy:**
+  - **EF Core (`IDbContextFactory<ErpDbContext>`):** Use for all Enterprise Management CRUD operations, hierarchical navigation loading, role/rights matrix persistence, custom element metadata, automatic migrations (`Database.MigrateAsync()`), and startup seeding (default Admin user, Roles, Pages, Themes). Using `IDbContextFactory` ensures thread-safety across Blazor Server SignalR circuits.
+  - **Dapper (`IDbConnectionFactory` / `SqlConnection`):** Use for high-speed read queries, Executive Dashboard KPI aggregations, stored procedure execution, and multi-table ERP reporting summaries.
+  - **Security:** Implement ASP.NET Core `PasswordHasher<T>` for user credentials and wrap multi-step writes in transactions where appropriate.
+
+---
+
+### 2. Core ERP Shell & Layout (`MainLayout.razor`)
+- **Fixed Top Header (`56px`):**
+  - **Left:** Sidebar toggle button (`DxButton`), application icon, and ERP Title.
+  - **Right:** Notification bell with unread badge counter + popover/drawer, User Profile dropdown (`DxDropDownButton` with Profile, Preferences, Switch Company/Location), and a Sign Out button with confirmation modal.
+- **Collapsible Side Menu (`NavMenu.razor`):**
+  - Powered by `DxTreeView` dynamically loaded via EF Core from the `AppPages` table and filtered by the logged-in user's role rights.
+  - Supports multi-level expandable parent/child menu items, Bootstrap/DevExpress icons, and dynamic status/count badges (with badge counts fetched via lightweight Dapper queries).
+- **Scrollable Workspace:**
+  - Wrapped in a Blazor `<ErrorBoundary>` with recovery actions and automatic logging to the global error handler.
+- **Fixed Bottom Footer (`32px`):**
+  - **Left:** Live status indicator dot and dynamic status text (`System Ready`, `Saving...`, etc.).
+  - **Right:** Real-time session telemetry displaying **Company**, **Location**, **Active User & Role**, and a live ticking **Session Active Timer (`HH:mm:ss`)**.
+
+---
+
+### 3. Global Shared Services & Overlay (`AppStateService` + `GlobalOverlay.razor`)
+Create a scoped `AppStateService` and a single `<GlobalOverlay />` component rendered in `MainLayout.razor` supporting:
+1. **Toast Notifications:** Wrapper around DevExpress `DxToastProvider` / `IToastNotificationService` (Success, Info, Warning, Danger).
+2. **Global Alert Banner:** Dismissible top workspace alert banner for system-wide announcements.
+3. **Global Modals (`DxPopup`):** Reusable confirmation dialogs (with `Action`/`Func<Task>` callbacks) and alert dialogs.
+4. **Global Error Handling:** Centralized `HandleGlobalError(Exception ex)` method that stops active spinners, updates footer status, logs the exception to SQL Server (`SystemLogs`), and opens a user-friendly error modal.
+5. **Progress & Wait Indicators:** Top sticky `DxProgressBar` (0–100%) and full-screen blocking `DxLoadingPanel` with custom busy messages.
+
+---
+
+### 4. Enterprise Management & Dashboard Modules (Backed by `RAPPS2`)
+Build full DevExpress screens demonstrating the hybrid architecture:
+1. **Executive ERP Dashboard (`/`) [Dapper]:** High-speed KPI cards, summary charts (`DxChart`), and recent activity grid queried via Dapper raw SQL/stored procedures.
+2. **Users & Directory (`/admin/users`) [EF Core]:** `DxGrid` CRUD to manage users, assign roles, default company/location, and active status.
+3. **Pages & Navigation (`/admin/pages`) [EF Core]:** `DxGrid` CRUD to manage hierarchical menu items, routes, icons, badge text/colors, and sort order.
+4. **Roles & Rights Matrix (`/admin/roles-rights`) [EF Core]:** Interactive `DxGrid` permission matrix (`CanView`, `CanCreate`, `CanEdit`, `CanDelete`, `CanExport`) per Role and Page.
+5. **Themes & Appearance (`/admin/themes`) [EF Core]:** Switch and persist DevExpress themes (`blazing-berry`, `blazing-dark`, `fluent-light`, `office-white`, `purple`) per user or tenant, dynamically updating the stylesheet link in `App.razor`.
+6. **Customizable Elements (`/admin/custom-elements`) [EF Core]:** Metadata-driven dynamic form/field builder allowing admins to define custom attributes (Text, Number, Date, Dropdown) per ERP entity and store values as JSON or EAV rows in SQL Server.
+
+---
+
+### 5. Deliverables Required
+Provide clean, modular, copy-pasteable code organized by folder:
+1. `appsettings.json` & `Program.cs` (Registering `IDbContextFactory<ErpDbContext>`, `IDbConnectionFactory` for Dapper, DevExpress services, and DB seeder)
+2. `Data/Entities/*.cs`, `Data/ErpDbContext.cs`, & `Data/DapperContext.cs`
+3. `Services/AppStateService.cs`, `Services/SecurityService.cs`, & `Services/DashboardQueryService.cs` (Dapper)
+4. `Components/Layout/MainLayout.razor`, `NavMenu.razor`, `GlobalOverlay.razor`, and `wwwroot/css/erp-layout.css`
+5. `Components/Pages/Home.razor` (Dapper Dashboard) & `Components/Pages/Admin/*.razor` (EF Core `DxGrid` CRUD modules)

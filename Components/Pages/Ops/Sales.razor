@@ -1,0 +1,68 @@
+@page "/ops/sales"
+@inject DashboardQueryService DashboardQuery
+@inject AppStateService AppState
+
+<PageTitle>Sales Orders & Billing - APEX ERP</PageTitle>
+
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-receipt text-primary me-2"></i>Sales Orders & Enterprise Invoicing
+            </h3>
+            <p class="text-secondary small mb-0">
+                Track pending sales order releases, customer invoices, and line-item revenue.
+            </p>
+        </div>
+        <div>
+            <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-3 py-2 small">
+                <i class="bi bi-clock-history me-1"></i> 14 Pending Fulfillment
+            </span>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 p-3 bg-white">
+        <DxGrid Data="@_salesOrders"
+                PageSize="10"
+                ShowSearchBox="true"
+                ShowFilterRow="true"
+                CssClass="erp-grid">
+            <Columns>
+                <DxGridDataColumn FieldName="OrderNumber" Caption="Order #" Width="140px">
+                    <CellDisplayTemplate>
+                        <span class="font-monospace fw-bold text-primary">@context.Value</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="Customer" Caption="Enterprise Customer" MinWidth="220" />
+                <DxGridDataColumn FieldName="OrderDate" Caption="Order Date" DisplayFormat="d" Width="130px" />
+                <DxGridDataColumn FieldName="TotalAmount" Caption="Total Value" DisplayFormat="C2" Width="140px">
+                    <CellDisplayTemplate>
+                        <span class="fw-semibold">@(((decimal)context.Value).ToString("C2"))</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="Status" Caption="Fulfillment Status" Width="160px">
+                    <CellDisplayTemplate>
+                        @{
+                            var order = (SalesOrder)context.DataItem;
+                        }
+                        <span class="badge @order.BadgeClass">@order.Status</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+    </div>
+</div>
+
+@code {
+    private record SalesOrder(string OrderNumber, string Customer, DateTime OrderDate, decimal TotalAmount, string Status, string BadgeClass);
+
+    private readonly List<SalesOrder> _salesOrders = new()
+    {
+        new("SO-2026-8801", "Lockheed Martin Space Systems", DateTime.Today.AddDays(-1), 184500m, "Released for Shipping", "bg-primary"),
+        new("SO-2026-8802", "Siemens Energy AG", DateTime.Today.AddDays(-2), 94200m, "Processing Pick List", "bg-info text-dark"),
+        new("SO-2026-8803", "Boeing Commercial Airplanes", DateTime.Today.AddDays(-3), 76400m, "Credit Review Hold", "bg-warning text-dark"),
+        new("SO-2026-8804", "General Electric Aviation", DateTime.Today.AddDays(-4), 225000m, "In Transit", "bg-success"),
+        new("SO-2026-8805", "Tesla Energy Megapack", DateTime.Today.AddDays(-5), 142000m, "Delivered", "bg-secondary")
+    };
+}
+

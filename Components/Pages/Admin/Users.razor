@@ -1,0 +1,351 @@
+@page "/admin/users"
+@inject IDbContextFactory<ErpDbContext> DbFactory
+@inject AppStateService AppState
+@inject IPasswordHasher<AppUser> PasswordHasher
+
+<PageTitle>User Governance & Directory - APEX ERP</PageTitle>
+
+<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-people-fill text-primary me-2"></i>User Governance & Directory
+            </h3>
+            <p class="text-secondary small mb-0">
+                Manage enterprise identity, role assignments, default tenant routing, and security credentials via <strong>EF Core</strong>.
+            </p>
+        </div>
+        <div>
+            <DxButton Text="Register New User"
+                      IconCssClass="bi bi-person-plus-fill"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Click="OpenAddModal" />
+        </div>
+    </div>
+
+    <!-- DxGrid User Directory -->
+    <div class="card shadow-sm border-0 p-3 bg-white">
+        <DxGrid Data="@_users"
+                KeyFieldName="Id"
+                PageSize="8"
+                ShowFilterRow="true"
+                ShowSearchBox="true"
+                CssClass="erp-grid">
+            <Columns>
+                <DxGridDataColumn FieldName="Username" Caption="Username" Width="140px">
+                    <CellDisplayTemplate>
+                        <span class="fw-bold text-dark font-monospace">@context.Value</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="FullName" Caption="Full Name" MinWidth="180" />
+                <DxGridDataColumn FieldName="Email" Caption="Email Address" MinWidth="200" />
+                <DxGridDataColumn FieldName="Role.Name" Caption="Assigned Role" Width="180px">
+                    <CellDisplayTemplate>
+                        @{
+                            var user = (AppUser)context.DataItem;
+                        }
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                            <i class="bi bi-shield-lock me-1"></i>@(user.Role?.Name ?? "Unassigned")
+                        </span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="DefaultCompany.Code" Caption="Company" Width="120px">
+                    <CellDisplayTemplate>
+                        @{
+                            var user = (AppUser)context.DataItem;
+                        }
+                        <span class="font-monospace">@(user.DefaultCompany?.Code ?? "N/A")</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="DefaultLocation.Code" Caption="Location" Width="120px">
+                    <CellDisplayTemplate>
+                        @{
+                            var user = (AppUser)context.DataItem;
+                        }
+                        <span class="font-monospace">@(user.DefaultLocation?.Code ?? "N/A")</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="IsActive" Caption="Status" Width="110px">
+                    <CellDisplayTemplate>
+                        @if ((bool)context.Value)
+                        {
+                            <span class="badge bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">Disabled</span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="Actions" Width="140px" TextAlignment="GridTextAlignment.Center">
+                    <CellDisplayTemplate>
+                        @{
+                            var user = (AppUser)context.DataItem;
+                        }
+                        <div class="d-flex justify-content-center gap-1">
+                            <DxButton IconCssClass="bi bi-pencil-square"
+                                      RenderStyle="ButtonRenderStyle.Secondary"
+                                      RenderStyleMode="ButtonRenderStyleMode.Text"
+                                      SizeMode="SizeMode.Small"
+                                      Click="@(() => OpenEditModal(user))"
+                                      aria-label="Edit User" />
+                            <DxButton IconCssClass="bi bi-trash text-danger"
+                                      RenderStyle="ButtonRenderStyle.Secondary"
+                                      RenderStyleMode="ButtonRenderStyleMode.Text"
+                                      SizeMode="SizeMode.Small"
+                                      Click="@(() => ConfirmDeleteUser(user))"
+                                      aria-label="Delete User" />
+                        </div>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+    </div>
+
+    <!-- Create / Edit User Modal Dialog (DxPopup) -->
+    <DxPopup Visible="@_isModalOpen"
+             VisibleChanged="@((bool val) => _isModalOpen = val)"
+             HeaderText="@(_isEditing ? "Modify Enterprise User" : "Register New Enterprise User")"
+             Width="600px"
+             CloseOnEscape="true"
+             CloseOnOutsideClick="false"
+             ShowCloseButton="true">
+        <BodyTemplate>
+            <div class="p-3">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Username *</label>
+                        <DxTextBox @bind-Text="@_currentUserModel.Username" ReadOnly="@_isEditing" NullText="e.g. jdoe" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Full Name *</label>
+                        <DxTextBox @bind-Text="@_currentUserModel.FullName" NullText="e.g. John Doe" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label small fw-bold">Corporate Email *</label>
+                        <DxTextBox @bind-Text="@_currentUserModel.Email" NullText="e.g. jdoe@enterprise.com" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label small fw-bold">@(_isEditing ? "Reset Password (Leave blank to keep current)" : "Initial Password *")</label>
+                        <DxTextBox @bind-Text="@_passwordInput" Password="true" NullText="Enter strong password" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label small fw-bold">Security Role *</label>
+                        <DxComboBox Data="@_roles"
+                                    Value="@_currentUserModel.RoleId"
+                                    ValueChanged="@((int val) => _currentUserModel.RoleId = val)"
+                                    TextFieldName="Name"
+                                    ValueFieldName="Id" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Default Company</label>
+                        <DxComboBox Data="@_companies"
+                                    Value="@_currentUserModel.DefaultCompanyId"
+                                    ValueChanged="@((int? val) => _currentUserModel.DefaultCompanyId = val)"
+                                    TextFieldName="Name"
+                                    ValueFieldName="Id"
+                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Default Facility / Location</label>
+                        <DxComboBox Data="@_locations"
+                                    Value="@_currentUserModel.DefaultLocationId"
+                                    ValueChanged="@((int? val) => _currentUserModel.DefaultLocationId = val)"
+                                    TextFieldName="Name"
+                                    ValueFieldName="Id"
+                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                    </div>
+                    <div class="col-md-12">
+                        <DxCheckBox @bind-Checked="@_currentUserModel.IsActive">Active Identity in ERP</DxCheckBox>
+                    </div>
+                </div>
+            </div>
+        </BodyTemplate>
+        <FooterTemplate>
+            <div class="d-flex justify-content-end gap-2 p-2 w-100 bg-light border-top">
+                <DxButton Text="Cancel"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="@(() => _isModalOpen = false)" />
+                <DxButton Text="@(_isEditing ? "Update User" : "Create User")"
+                          RenderStyle="ButtonRenderStyle.Primary"
+                          Click="SaveUserAsync" />
+            </div>
+        </FooterTemplate>
+    </DxPopup>
+</div>
+
+@code {
+    private List<AppUser> _users = new();
+    private List<AppRole> _roles = new();
+    private List<AppCompany> _companies = new();
+    private List<AppLocation> _locations = new();
+
+    private bool _isModalOpen = false;
+    private bool _isEditing = false;
+    private AppUser _currentUserModel = new();
+    private string _passwordInput = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        AppState.SetFooterStatus("Loading Users via EF Core...", "Busy");
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+            _users = await context.AppUsers
+                .Include(u => u.Role)
+                .Include(u => u.DefaultCompany)
+                .Include(u => u.DefaultLocation)
+                .OrderBy(u => u.Username)
+                .ToListAsync();
+
+            _roles = await context.AppRoles.OrderBy(r => r.Name).ToListAsync();
+            _companies = await context.AppCompanies.Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
+            _locations = await context.AppLocations.Where(l => l.IsActive).OrderBy(l => l.Name).ToListAsync();
+
+            AppState.SetFooterStatus("Users Loaded", "Normal");
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to load user records from SQL Server.");
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        _isEditing = false;
+        _passwordInput = string.Empty;
+        _currentUserModel = new AppUser
+        {
+            IsActive = true,
+            RoleId = _roles.FirstOrDefault()?.Id ?? 1,
+            DefaultCompanyId = _companies.FirstOrDefault()?.Id,
+            DefaultLocationId = _locations.FirstOrDefault()?.Id
+        };
+        _isModalOpen = true;
+    }
+
+    private void OpenEditModal(AppUser user)
+    {
+        _isEditing = true;
+        _passwordInput = string.Empty;
+        _currentUserModel = new AppUser
+        {
+            Id = user.Id,
+            Username = user.Username,
+            FullName = user.FullName,
+            Email = user.Email,
+            RoleId = user.RoleId,
+            DefaultCompanyId = user.DefaultCompanyId,
+            DefaultLocationId = user.DefaultLocationId,
+            IsActive = user.IsActive,
+            PasswordHash = user.PasswordHash
+        };
+        _isModalOpen = true;
+    }
+
+    private async Task SaveUserAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentUserModel.Username) || string.IsNullOrWhiteSpace(_currentUserModel.Email))
+        {
+            AppState.ShowToast("Please provide both username and email", "Validation Error", ToastNotificationType.Warning);
+            return;
+        }
+
+        AppState.ShowLoading("Persisting user records to RAPPS2...");
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+
+            if (_isEditing)
+            {
+                var existing = await context.AppUsers.FindAsync(_currentUserModel.Id);
+                if (existing != null)
+                {
+                    existing.FullName = _currentUserModel.FullName;
+                    existing.Email = _currentUserModel.Email;
+                    existing.RoleId = _currentUserModel.RoleId;
+                    existing.DefaultCompanyId = _currentUserModel.DefaultCompanyId;
+                    existing.DefaultLocationId = _currentUserModel.DefaultLocationId;
+                    existing.IsActive = _currentUserModel.IsActive;
+
+                    if (!string.IsNullOrWhiteSpace(_passwordInput))
+                    {
+                        existing.PasswordHash = PasswordHasher.HashPassword(existing, _passwordInput);
+                    }
+
+                    await context.SaveChangesAsync();
+                    AppState.ShowToast($"User '{existing.Username}' updated successfully", "User Saved", ToastNotificationType.Success);
+                }
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(_passwordInput))
+                {
+                    AppState.HideLoading();
+                    AppState.ShowToast("Initial password is required for new accounts", "Validation Error", ToastNotificationType.Warning);
+                    return;
+                }
+
+                _currentUserModel.PasswordHash = PasswordHasher.HashPassword(_currentUserModel, _passwordInput);
+                _currentUserModel.CreatedAt = DateTime.UtcNow;
+
+                context.AppUsers.Add(_currentUserModel);
+                await context.SaveChangesAsync();
+                AppState.ShowToast($"User '{_currentUserModel.Username}' registered successfully", "User Registered", ToastNotificationType.Success);
+            }
+
+            _isModalOpen = false;
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to save user record to SQL Server.");
+        }
+        finally
+        {
+            AppState.HideLoading();
+        }
+    }
+
+    private void ConfirmDeleteUser(AppUser user)
+    {
+        AppState.ShowConfirmationModal(
+            title: "Confirm User Removal",
+            message: $"Are you sure you want to deactivate or remove user '{user.Username}' ({user.FullName})? This will revoke all enterprise access.",
+            onConfirm: async () =>
+            {
+                AppState.ShowLoading("Deactivating user in RAPPS2...");
+                try
+                {
+                    await using var context = await DbFactory.CreateDbContextAsync();
+                    var existing = await context.AppUsers.FindAsync(user.Id);
+                    if (existing != null)
+                    {
+                        existing.IsActive = false; // Soft-delete / deactivate
+                        await context.SaveChangesAsync();
+                        AppState.ShowToast($"User '{user.Username}' deactivated", "User Deactivated", ToastNotificationType.Info);
+                        await LoadDataAsync();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await AppState.HandleGlobalErrorAsync(ex, "Failed to deactivate user.");
+                }
+                finally
+                {
+                    AppState.HideLoading();
+                }
+            },
+            confirmButtonText: "Deactivate",
+            cancelButtonText: "Cancel"
+        );
+    }
+}
+

@@ -1,0 +1,349 @@
+/* ==========================================================================
+   APEX ENTERPRISE ERP - CORE LAYOUT & DESIGN SYSTEM
+   ========================================================================== */
+
+:root {
+    --erp-header-height: 56px;
+    --erp-footer-height: 32px;
+    --erp-sidebar-width: 260px;
+    --erp-sidebar-collapsed-width: 0px;
+    --erp-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body, html {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: var(--erp-font-family);
+    background-color: #f4f6f9;
+}
+
+/* App Container Layout Grid */
+.erp-app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+}
+
+/* 1. Fixed Top Header (56px) */
+.erp-top-header {
+    height: var(--erp-header-height);
+    min-height: var(--erp-header-height);
+    max-height: var(--erp-header-height);
+    background-color: #1e293b;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    z-index: 1020;
+}
+
+.erp-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.erp-brand-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #ffffff;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.erp-brand-badge {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    font-weight: 800;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+}
+
+.erp-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* 2. Middle Body (Sidebar + Content Workspace) */
+.erp-body-wrapper {
+    display: flex;
+    flex: 1;
+    height: calc(100vh - var(--erp-header-height) - var(--erp-footer-height));
+    overflow: hidden;
+    position: relative;
+}
+
+/* Collapsible Side Menu */
+.erp-sidebar {
+    width: var(--erp-sidebar-width);
+    min-width: var(--erp-sidebar-width);
+    background-color: #0f172a;
+    color: #cbd5e1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: width 0.25s ease-in-out, min-width 0.25s ease-in-out, margin-left 0.25s ease-in-out;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    z-index: 1010;
+}
+
+.erp-sidebar.collapsed {
+    width: var(--erp-sidebar-collapsed-width);
+    min-width: var(--erp-sidebar-collapsed-width);
+    margin-left: calc(-1 * var(--erp-sidebar-width));
+}
+
+.erp-sidebar-header {
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #64748b;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.erp-nav-list {
+    list-style: none;
+    padding: 0.5rem 0;
+    margin: 0;
+}
+
+.erp-nav-item {
+    margin: 2px 8px;
+}
+
+.erp-nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.55rem 0.75rem;
+    border-radius: 6px;
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 500;
+    transition: all 0.15s ease-in-out;
+}
+
+.erp-nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+    color: #ffffff;
+}
+
+.erp-nav-link.active {
+    background-color: #2563eb;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.erp-nav-link-content {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.erp-nav-icon {
+    font-size: 1.05rem;
+    width: 20px;
+    text-align: center;
+}
+
+.erp-nav-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.erp-nav-group-header {
+    padding: 0.55rem 0.75rem;
+    border-radius: 6px;
+    color: #cbd5e1;
+    font-size: 0.88rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+}
+
+.erp-nav-group-header:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.erp-nav-sublist {
+    list-style: none;
+    padding: 0 0 0 1.25rem;
+    margin: 2px 0;
+}
+
+/* 3. Scrollable Workspace */
+.erp-workspace {
+    flex: 1;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1.25rem;
+    background-color: #f8fafc;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 4. Fixed Bottom Footer (32px) */
+.erp-bottom-footer {
+    height: var(--erp-footer-height);
+    min-height: var(--erp-footer-height);
+    max-height: var(--erp-footer-height);
+    background-color: #0f172a;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem;
+    font-size: 0.78rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    z-index: 1020;
+}
+
+.erp-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.erp-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.erp-status-indicator {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.erp-status-indicator.ready {
+    background-color: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+
+.erp-status-indicator.busy {
+    background-color: #f59e0b;
+    box-shadow: 0 0 8px #f59e0b;
+    animation: erpPulse 1.2s infinite;
+}
+
+.erp-status-indicator.error {
+    background-color: #ef4444;
+    box-shadow: 0 0 8px #ef4444;
+}
+
+@keyframes erpPulse {
+    0% { transform: scale(0.9); opacity: 0.8; }
+    50% { transform: scale(1.3); opacity: 1; }
+    100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+/* 5. Telemetry Badges in Header & Footer */
+.erp-telemetry-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.erp-telemetry-badge {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.75rem;
+}
+
+/* 6. Dashboard KPI Card Styling */
+.erp-kpi-card {
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.erp-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+}
+
+.erp-kpi-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+}
+
+/* 7. Toast Container Overlay */
+.erp-toast-container {
+    position: fixed;
+    top: 68px;
+    right: 20px;
+    z-index: 1080;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 380px;
+}
+
+.erp-toast-item {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    padding: 0.75rem 1rem;
+    border-left: 4px solid #3b82f6;
+    animation: slideInRight 0.25s ease-out;
+}
+
+.erp-toast-item.toast-success { border-left-color: #10b981; }
+.erp-toast-item.toast-warning { border-left-color: #f59e0b; }
+.erp-toast-item.toast-danger { border-left-color: #ef4444; }
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* Custom Scrollbar for ERP look */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.04);
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+

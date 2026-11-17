@@ -1,0 +1,269 @@
+@page "/"
+@inject DashboardQueryService DashboardQuery
+@inject AppStateService AppState
+
+<PageTitle>Executive Dashboard - APEX ERP</PageTitle>
+
+<div class="container-fluid p-0">
+    <!-- Screen Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-speedometer2 text-primary me-2"></i>Executive ERP Dashboard
+            </h3>
+            <p class="text-secondary small mb-0">
+                High-speed business telemetry & aggregations powered by <strong>Dapper Raw SQL</strong> on <code>RAPPS2</code>
+            </p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            @if (_lastQueryDurationMs > 0)
+            {
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 py-2 px-3 small">
+                    <i class="bi bi-lightning-charge-fill me-1"></i> Dapper Latency: @_lastQueryDurationMs ms
+                </span>
+            }
+            <DxButton Text="Refresh Telemetry"
+                      IconCssClass="bi bi-arrow-repeat"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Click="LoadDashboardDataAsync" />
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="card p-5 text-center shadow-sm border-0 my-4">
+            <div class="spinner-border text-primary mx-auto mb-3" role="status"></div>
+            <h6 class="text-secondary">Executing High-Speed Dapper Aggregations on SQL Server...</h6>
+        </div>
+    }
+    else
+    {
+        <!-- 1. Executive KPI Cards -->
+        <div class="row g-3 mb-4">
+            <!-- Total Revenue -->
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="card erp-kpi-card shadow-sm p-3 h-100 bg-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="text-muted small fw-semibold text-uppercase">Total YTD Revenue</span>
+                            <h3 class="fw-bold text-dark mt-1 mb-0">@_kpis.TotalRevenue.ToString("C0")</h3>
+                            <span class="badge bg-success bg-opacity-10 text-success mt-2 small">
+                                <i class="bi bi-arrow-up-right me-1"></i>+@_kpis.RevenueGrowthPercent% vs Target
+                            </span>
+                        </div>
+                        <div class="erp-kpi-icon-wrapper bg-primary bg-opacity-10 text-primary">
+                            <i class="bi bi-currency-dollar"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Orders -->
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="card erp-kpi-card shadow-sm p-3 h-100 bg-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="text-muted small fw-semibold text-uppercase">Monthly Orders</span>
+                            <h3 class="fw-bold text-dark mt-1 mb-0">@_kpis.MonthlyOrdersCount.ToString("N0")</h3>
+                            <span class="badge bg-info bg-opacity-10 text-info mt-2 small">
+                                <i class="bi bi-graph-up me-1"></i>+@_kpis.OrdersGrowthPercent% MoM Growth
+                            </span>
+                        </div>
+                        <div class="erp-kpi-icon-wrapper bg-info bg-opacity-10 text-info">
+                            <i class="bi bi-cart-check"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Open Invoices -->
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="card erp-kpi-card shadow-sm p-3 h-100 bg-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="text-muted small fw-semibold text-uppercase">Outstanding Receivables</span>
+                            <h3 class="fw-bold text-dark mt-1 mb-0">@_kpis.OpenInvoicesAmount.ToString("C0")</h3>
+                            <span class="badge bg-warning bg-opacity-10 text-warning mt-2 small">
+                                <i class="bi bi-clock-history me-1"></i>@_kpis.OpenInvoicesCount Invoices Pending
+                            </span>
+                        </div>
+                        <div class="erp-kpi-icon-wrapper bg-warning bg-opacity-10 text-warning">
+                            <i class="bi bi-receipt-cutoff"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Circuit & System Health -->
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="card erp-kpi-card shadow-sm p-3 h-100 bg-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="text-muted small fw-semibold text-uppercase">SignalR SLA Health</span>
+                            <h3 class="fw-bold text-dark mt-1 mb-0">@_kpis.SystemHealthScore%</h3>
+                            <span class="badge bg-success bg-opacity-10 text-success mt-2 small">
+                                <i class="bi bi-shield-check me-1"></i>Zero Latency Jitter
+                            </span>
+                        </div>
+                        <div class="erp-kpi-icon-wrapper bg-success bg-opacity-10 text-success">
+                            <i class="bi bi-activity"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. DevExpress Visual Analytics Charts -->
+        <div class="row g-3 mb-4">
+            <!-- Monthly Revenue Chart -->
+            <div class="col-12 col-lg-8">
+                <div class="card shadow-sm border-0 p-3 h-100 bg-white">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="bi bi-bar-chart-line-fill text-primary me-2"></i>Fiscal Sales Trajectory: Actual vs Target
+                        </h6>
+                        <span class="badge bg-secondary font-monospace">Dapper Read Stream</span>
+                    </div>
+
+                    <DxChart Data="@_monthlySales"
+                             Width="100%"
+                             Height="320px">
+                        <DxChartTitle Text="Monthly Sales Performance (USD)" />
+                        <DxChartLegend Position="RelativePosition.Outside"
+                                       HorizontalAlignment="HorizontalAlignment.Right" />
+                        
+                        <DxChartBarSeries Name="Actual Revenue"
+                                          ArgumentField="@((MonthlySalesDto s) => s.MonthName)"
+                                          ValueField="@((MonthlySalesDto s) => s.ActualRevenue)" />
+
+                        <DxChartLineSeries Name="Target Revenue"
+                                           ArgumentField="@((MonthlySalesDto s) => s.MonthName)"
+                                           ValueField="@((MonthlySalesDto s) => s.TargetRevenue)">
+                            <DxChartSeriesPoint Visible="true" />
+                        </DxChartLineSeries>
+                    </DxChart>
+                </div>
+            </div>
+
+            <!-- Revenue Distribution Chart -->
+            <div class="col-12 col-lg-4">
+                <div class="card shadow-sm border-0 p-3 h-100 bg-white">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="bi bi-pie-chart-fill text-info me-2"></i>Revenue by Sector
+                        </h6>
+                    </div>
+
+                    <DxPieChart Data="@_categorySales"
+                                Width="100%"
+                                Height="320px">
+                        <DxPieChartSeries ArgumentField="@((CategoryRevenueDto c) => c.CategoryName)"
+                                          ValueField="@((CategoryRevenueDto c) => c.Revenue)">
+                            <DxChartSeriesLabel Visible="true"
+                                                Position="RelativePosition.Outside" />
+                        </DxPieChartSeries>
+                        <DxChartLegend Position="RelativePosition.Outside"
+                                       HorizontalAlignment="HorizontalAlignment.Center" />
+                    </DxPieChart>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Recent ERP Transactions Grid (Dapper High-Speed Query) -->
+        <div class="card shadow-sm border-0 p-3 bg-white">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-clock-history text-success me-2"></i>Recent High-Value ERP Transactions
+                    </h6>
+                    <small class="text-muted">Real-time ledger entries dispatched across enterprise subsidiaries</small>
+                </div>
+                <span class="badge bg-light text-dark border">
+                    <i class="bi bi-database-check me-1 text-success"></i>Dapper Direct Mapping
+                </span>
+            </div>
+
+            <DxGrid Data="@_recentTransactions"
+                    PageSize="6"
+                    ShowFilterRow="true"
+                    ShowSearchBox="true"
+                    CssClass="erp-grid">
+                <Columns>
+                    <DxGridDataColumn FieldName="ReferenceNumber" Caption="Ref #" Width="140px">
+                        <CellDisplayTemplate>
+                            <span class="font-monospace fw-bold text-primary">@context.Value</span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="CustomerName" Caption="Client / Supplier" MinWidth="220" />
+                    <DxGridDataColumn FieldName="TransactionType" Caption="Transaction Type" Width="170px" />
+                    <DxGridDataColumn FieldName="Amount" Caption="Amount" DisplayFormat="C2" Width="140px">
+                        <CellDisplayTemplate>
+                            <span class="fw-semibold">@(((decimal)context.Value).ToString("C2"))</span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="Status" Caption="Status" Width="140px">
+                        <CellDisplayTemplate>
+                            @{
+                                var tx = (RecentTransactionDto)context.DataItem;
+                            }
+                            <span class="badge @tx.StatusBadgeClass">@tx.Status</span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="Timestamp" Caption="Processed Time" DisplayFormat="g" Width="180px" />
+                </Columns>
+            </DxGrid>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isLoading = true;
+    private long _lastQueryDurationMs = 0;
+    private DashboardKpiDto _kpis = new();
+    private List<MonthlySalesDto> _monthlySales = new();
+    private List<CategoryRevenueDto> _categorySales = new();
+    private List<RecentTransactionDto> _recentTransactions = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardDataAsync();
+    }
+
+    private async Task LoadDashboardDataAsync()
+    {
+        _isLoading = true;
+        AppState.SetFooterStatus("Executing Dapper KPI Aggregations...", "Busy");
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        try
+        {
+            // Execute Dapper queries asynchronously in parallel
+            var kpiTask = DashboardQuery.GetExecutiveKpisAsync();
+            var salesTask = DashboardQuery.GetMonthlySalesTrendsAsync();
+            var catTask = DashboardQuery.GetCategoryDistributionAsync();
+            var txTask = DashboardQuery.GetRecentTransactionsAsync(10);
+
+            await Task.WhenAll(kpiTask, salesTask, catTask, txTask);
+
+            _kpis = await kpiTask;
+            _monthlySales = (await salesTask).ToList();
+            _categorySales = (await catTask).ToList();
+            _recentTransactions = (await txTask).ToList();
+
+            sw.Stop();
+            _lastQueryDurationMs = sw.ElapsedMilliseconds;
+
+            AppState.SetFooterStatus($"Dapper Query Complete ({_lastQueryDurationMs}ms)", "Normal");
+            AppState.ShowToast($"Dashboard analytics refreshed via Dapper in {_lastQueryDurationMs}ms", "Dapper Engine", ToastNotificationType.Success);
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to load executive dashboard queries via Dapper.");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

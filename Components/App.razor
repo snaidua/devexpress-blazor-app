@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <!-- Dynamic DevExpress Theme Stylesheet -->
+    <link id="dx-theme-stylesheet" rel="stylesheet" href="_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css" />
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <!-- Core ERP Shell Styles -->
+    <link rel="stylesheet" href="css/erp-layout.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+
+<body>
+    <Routes @rendermode="InteractiveServer" />
+
+    <script src="_framework/blazor.web.js"></script>
+    <script>
+        window.switchTheme = function (themeName) {
+            var themeLink = document.getElementById('dx-theme-stylesheet');
+            if (themeLink) {
+                themeLink.href = '_content/DevExpress.Blazor.Themes/' + themeName + '.bs5.min.css';
+            }
+        };
+    </script>
+</body>
+
+</html>
