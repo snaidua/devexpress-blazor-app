@@ -47,7 +47,8 @@
          Width="550px"
          CloseOnEscape="true"
          CloseOnOutsideClick="false"
-         ShowCloseButton="true">
+         ShowCloseButton="true"
+         ShowFooter="true">
     <BodyTemplate>
         <div class="p-3">
             <div class="d-flex align-items-start mb-3">
@@ -135,8 +136,13 @@
 
     protected override void OnInitialized()
     {
-        AppState.OnChange += StateHasChanged;
+        AppState.OnChange += HandleAppStateChanged;
         AppState.OnToastRequested += HandleToastRequested;
+    }
+
+    private void HandleAppStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
     }
 
     private void ToggleDetails() => _showDetails = !_showDetails;
@@ -183,7 +189,7 @@
 
     public void Dispose()
     {
-        AppState.OnChange -= StateHasChanged;
+        AppState.OnChange -= HandleAppStateChanged;
         AppState.OnToastRequested -= HandleToastRequested;
     }
 }

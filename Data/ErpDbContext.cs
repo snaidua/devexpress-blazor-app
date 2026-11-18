@@ -38,12 +38,12 @@ public class ErpDbContext : DbContext
             entity.HasOne(u => u.DefaultCompany)
                   .WithMany()
                   .HasForeignKey(u => u.DefaultCompanyId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(u => u.DefaultLocation)
                   .WithMany()
                   .HasForeignKey(u => u.DefaultLocationId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(u => u.Preference)
                   .WithOne(p => p.User)
@@ -63,7 +63,7 @@ public class ErpDbContext : DbContext
             entity.HasOne(l => l.Company)
                   .WithMany(c => c.Locations)
                   .HasForeignKey(l => l.CompanyId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // AppPage Hierarchy
@@ -88,7 +88,7 @@ public class ErpDbContext : DbContext
             entity.HasOne(rr => rr.Page)
                   .WithMany(p => p.RoleRights)
                   .HasForeignKey(rr => rr.PageId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // CustomElementMetadata

@@ -1,0 +1,649 @@
+@typeparam TItem
+@inject IJSRuntime JSRuntime
+@inject AppStateService AppState
+
+<div class="erp-grid-wrapper shadow-sm rounded border bg-white mb-4">
+    <!-- 1. Grid Top Toolbar: Left Icons, Middle Title, Right Column ComboBox + Search (Filter Icon REMOVED) -->
+    <div class="erp-grid-toolbar d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-light">
+        <!-- Left Side: Add / Delete / Export / Import (ICONS ONLY) -->
+        <div class="d-flex align-items-center gap-1">
+            @if (ShowAddButton)
+            {
+                <DxButton IconCssClass="bi bi-plus-circle-fill text-primary fs-5"
+                          RenderStyle="ButtonRenderStyle.Light"
+                          RenderStyleMode="ButtonRenderStyleMode.Text"
+                          SizeMode="SizeMode.Small"
+                          Tooltip="Add / Append New Row"
+                          Click="HandleAddAsync"
+                          aria-label="Append Row" />
+            }
+
+            @if (ShowDeleteButton)
+            {
+                <DxButton IconCssClass="bi bi-trash3-fill text-danger fs-5"
+                          RenderStyle="ButtonRenderStyle.Light"
+                          RenderStyleMode="ButtonRenderStyleMode.Text"
+                          SizeMode="SizeMode.Small"
+                          Tooltip="Delete Selected Row(s)"
+                          Enabled="@(SelectedDataItems != null && SelectedDataItems.Count > 0)"
+                          Click="HandleDeleteAsync"
+                          aria-label="Delete Selected Rows" />
+            }
+
+            @if (ShowExportButton)
+            {
+                <DxButton IconCssClass="bi bi-file-earmark-excel-fill text-success fs-5"
+                          RenderStyle="ButtonRenderStyle.Light"
+                          RenderStyleMode="ButtonRenderStyleMode.Text"
+                          SizeMode="SizeMode.Small"
+                          Tooltip="Export to Excel (.xlsx)"
+                          Click="ExportToExcelAsync"
+                          aria-label="Export to Excel" />
+            }
+
+            @if (ShowImportButton)
+            {
+                <DxButton IconCssClass="bi bi-file-earmark-arrow-up-fill text-secondary fs-5"
+                          RenderStyle="ButtonRenderStyle.Light"
+                          RenderStyleMode="ButtonRenderStyleMode.Text"
+                          SizeMode="SizeMode.Small"
+                          Tooltip="Import Dataset from CSV / Excel"
+                          Click="OpenImportModal"
+                          aria-label="Import Data" />
+            }
+
+            @if (ToolbarCustomActions != null)
+            {
+                <div class="vr mx-2"></div>
+                @ToolbarCustomActions
+            }
+        </div>
+
+        <!-- Middle: Title & Total Count -->
+        <div class="erp-grid-title-container text-center px-2">
+            <span class="erp-grid-title fw-bold text-dark fs-6">
+                @Title
+            </span>
+        </div>
+
+        <!-- Extreme Right: Combo Box of Column Headings before Search (Filter Icon REMOVED) -->
+        <div class="d-flex align-items-center gap-2">
+            @if (ShowSearchBox)
+            {
+                <!-- Combo Box of Column Headings to filter by column -->
+                <div style="min-width: 145px; max-width: 175px;">
+                    <DxComboBox Data="@AvailableFilterColumns"
+                                Value="@_selectedFilterColumn"
+                                ValueChanged="@((string col) => OnFilterColumnChanged(col))"
+                                NullText="All Columns"
+                                SizeMode="SizeMode.Small"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                </div>
+
+                <!-- Search Input Box -->
+                <div class="input-group input-group-sm" style="min-width: 170px; max-width: 220px;">
+                    <span class="input-group-text bg-white border-end-0 py-0 text-muted">
+                        <i class="bi bi-search small"></i>
+                    </span>
+                    <input type="text"
+                           class="form-control border-start-0 py-0 small"
+                           placeholder="@SearchPlaceholder"
+                           @bind="@_searchFilter"
+                           @bind:event="oninput" />
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- 2. Fixed-Height Grid Body Container (proportional to RowsCount, does not change with row count) -->
+    <div class="erp-grid-body-container" style="height: @($"{FixedGridHeightPx}px"); min-height: @($"{FixedGridHeightPx}px"); max-height: @($"{FixedGridHeightPx}px"); overflow-y: auto;">
+        <DxGrid @ref="_grid"
+                Data="@FilteredData"
+                KeyFieldName="@KeyFieldName"
+                EditMode="@(IsEditable ? GridEditMode.EditCell : GridEditMode.EditRow)"
+                SelectionMode="GridSelectionMode.Multiple"
+                SelectAllCheckboxMode="GridSelectAllCheckboxMode.AllPages"
+                SelectedDataItems="@SelectedDataItems"
+                SelectedDataItemsChanged="@OnSelectedDataItemsChanged"
+                ShowFilterRow="false"
+                ShowSearchBox="false"
+                PageSize="@EffectivePageSize"
+                PageIndex="@_pageIndex"
+                PageIndexChanged="@OnPageIndexChanged"
+                ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
+                CssClass="erp-excel-grid"
+                EditModelSaving="@OnEditModelSaving"
+                DataItemDeleting="@OnDataItemDeleting">
+            <Columns>
+                <!-- Row Number Column (Excel Row Header # with continuous numbering across pages) -->
+                <DxGridDataColumn Caption="#"
+                                  Width="55px"
+                                  TextAlignment="GridTextAlignment.Center"
+                                  AllowSort="false"
+                                  AllowGroup="false">
+                    <CellDisplayTemplate>
+                        <span class="row-num-cell">
+                            @(GetRowNumber(context.VisibleIndex))
+                        </span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+
+                <!-- Selection Checkbox Column during Editing / Multi-Select -->
+                <DxGridSelectionColumn Width="45px"
+                                       AllowSelectAll="true" />
+
+                <!-- Consumer Defined Columns -->
+                @Columns
+            </Columns>
+        </DxGrid>
+    </div>
+
+    <!-- 3. Grid Bottom Footer with Telemetry, Rows Selector & Page Navigation -->
+    <div class="erp-grid-footer d-flex justify-content-between align-items-center px-3 py-2 border-top bg-light">
+            @foreach (var pageNum in GetVisiblePageNumbers())
+            {
+                var pIndex = pageNum - 1;
+                <button type="button"
+                        class="btn btn-sm @(pIndex == _pageIndex ? "btn-primary fw-bold text-white" : "btn-light text-dark") px-2 py-0 border"
+                        style="min-width: 32px; height: 28px; font-size: 0.8rem;"
+                        @onclick="@(() => GoToPageAsync(pIndex))">
+                    @pageNum
+                </button>
+            }
+
+            <!-- Next Page -->
+            <DxButton IconCssClass="bi bi-chevron-right"
+                      RenderStyle="ButtonRenderStyle.Light"
+                      RenderStyleMode="ButtonRenderStyleMode.Text"
+                      SizeMode="SizeMode.Small"
+                      Enabled="@(_pageIndex < TotalPages - 1)"
+                      Tooltip="Next Page"
+                      Click="@(() => GoToPageAsync(_pageIndex + 1))"
+                      aria-label="Next Page" />
+
+            <!-- Last Page -->
+            <DxButton IconCssClass="bi bi-chevron-double-right"
+                      RenderStyle="ButtonRenderStyle.Light"
+                      RenderStyleMode="ButtonRenderStyleMode.Text"
+                      SizeMode="SizeMode.Small"
+                      Enabled="@(_pageIndex < TotalPages - 1)"
+                      Tooltip="Last Page"
+                      Click="@(() => GoToPageAsync(TotalPages - 1))"
+                      aria-label="Last Page" />
+    </div>
+</div>
+
+<!-- Import Modal Dialog (DxPopup) -->
+<DxPopup Visible="@_isImportModalOpen"
+         VisibleChanged="@((bool val) => _isImportModalOpen = val)"
+         HeaderText="Import Data Records"
+         Width="520px"
+         CloseOnEscape="true"
+         ShowCloseButton="true"
+         ShowFooter="true">
+    <BodyTemplate>
+        <div class="p-3">
+            <p class="small text-muted mb-3">
+                Upload or paste a comma-delimited CSV payload or Excel sheet to bulk import records into <strong>@Title</strong>.
+            </p>
+            <div class="mb-3">
+                <label class="form-label small fw-bold">Select File (.csv, .xlsx)</label>
+                <input class="form-control form-control-sm" type="file" accept=".csv, .xlsx, .json" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-bold">Or Paste Raw CSV Data</label>
+                <textarea class="form-control font-monospace small" rows="5" placeholder="Col1,Col2,Col3&#10;Val1,Val2,Val3" @bind="@_rawImportText"></textarea>
+            </div>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <div class="d-flex justify-content-end gap-2 p-2 w-100 bg-light border-top">
+            <DxButton Text="Cancel" RenderStyle="ButtonRenderStyle.Secondary" Click="@(() => _isImportModalOpen = false)" />
+            <DxButton Text="Process Import" RenderStyle="ButtonRenderStyle.Primary" Click="ProcessImportAsync" />
+        </div>
+    </FooterTemplate>
+</DxPopup>
+
+@code {
+    private IGrid? _grid;
+    private bool _isImportModalOpen = false;
+    private string _rawImportText = string.Empty;
+    private string _searchFilter = string.Empty;
+    private string? _selectedFilterColumn = "All Columns";
+    private int _pageIndex = 0;
+    private int? _customPageSize;
+
+    /// <summary>
+    /// Fixed number of rows to define the persistent display size of the grid.
+    /// </summary>
+    [Parameter] public int RowsCount { get; set; } = 10;
+
+    /// <summary>
+    /// Optional override for page size. Defaults to RowsCount.
+    /// </summary>
+    [Parameter] public int? PageSize { get; set; }
+
+    [Parameter] public IEnumerable<TItem>? Data { get; set; }
+    [Parameter] public string? KeyFieldName { get; set; }
+    [Parameter] public string Title { get; set; } = "Data Records";
+    [Parameter] public bool IsEditable { get; set; } = true;
+    [Parameter] public bool ShowAddButton { get; set; } = true;
+    [Parameter] public bool ShowDeleteButton { get; set; } = true;
+    [Parameter] public bool ShowExportButton { get; set; } = true;
+    [Parameter] public bool ShowImportButton { get; set; } = true;
+    [Parameter] public bool ShowSearchBox { get; set; } = true;
+    [Parameter] public bool ShowPageSizeSelector { get; set; } = true;
+    [Parameter] public int[] PageSizeSelectorItems { get; set; } = new[] { 5, 10, 15, 25, 50 };
+
+    /// <summary>
+    /// List of column headings to display in the filter combo box.
+    /// </summary>
+    [Parameter] public IEnumerable<string>? ColumnHeadings { get; set; }
+
+    /// <summary>
+    /// Optional custom filter predicate (item, columnHeading, searchTerm) => bool.
+    /// </summary>
+    [Parameter] public Func<TItem, string, string, bool>? ColumnFilterPredicate { get; set; }
+
+    [Parameter] public RenderFragment? Columns { get; set; }
+    [Parameter] public RenderFragment? ToolbarCustomActions { get; set; }
+
+    [Parameter] public IReadOnlyList<object>? SelectedDataItems { get; set; }
+    [Parameter] public EventCallback<IReadOnlyList<object>> SelectedDataItemsChanged { get; set; }
+
+    [Parameter] public EventCallback OnAdd { get; set; }
+    [Parameter] public EventCallback<IReadOnlyList<object>> OnDelete { get; set; }
+    [Parameter] public EventCallback<string> OnExport { get; set; }
+    [Parameter] public EventCallback<string> OnImport { get; set; }
+    [Parameter] public EventCallback<GridEditModelSavingEventArgs> EditModelSaving { get; set; }
+    [Parameter] public EventCallback<GridDataItemDeletingEventArgs> DataItemDeleting { get; set; }
+
+    private int RowHeightPx => 38;
+    private int HeaderHeightPx => 38;
+    private int FixedGridHeightPx => (RowsCount * RowHeightPx) + HeaderHeightPx;
+
+    private int EffectivePageSize => _customPageSize ?? (PageSize.HasValue && PageSize.Value > 0 ? PageSize.Value : RowsCount);
+
+    private List<string> AvailableFilterColumns
+    {
+        get
+        {
+            var list = new List<string> { "All Columns" };
+            if (ColumnHeadings != null && ColumnHeadings.Any())
+            {
+                list.AddRange(ColumnHeadings.Where(c => !string.IsNullOrWhiteSpace(c) && c != "All Columns"));
+            }
+            else
+            {
+                var props = typeof(TItem).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+                    .Where(p => p.CanRead && (p.PropertyType.IsValueType || p.PropertyType == typeof(string)))
+                    .Select(p => p.Name);
+                list.AddRange(props);
+            }
+            return list;
+        }
+    }
+
+    private string SearchPlaceholder
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_selectedFilterColumn) || _selectedFilterColumn == "All Columns")
+            {
+                return "Quick find in all...";
+            }
+            var name = _selectedFilterColumn.Length > 12 ? _selectedFilterColumn.Substring(0, 10) + ".." : _selectedFilterColumn;
+            return $"Filter {name}...";
+        }
+    }
+
+    public async Task StartEditNewRowAsync()
+    {
+        if (_grid != null)
+        {
+            await _grid.StartEditNewRowAsync();
+        }
+    }
+
+    private IEnumerable<TItem>? FilteredData
+    {
+        get
+        {
+            if (Data == null) return null;
+            if (string.IsNullOrWhiteSpace(_searchFilter)) return Data;
+
+            var term = _searchFilter.Trim();
+            var selectedCol = _selectedFilterColumn?.Trim();
+            bool isAll = string.IsNullOrEmpty(selectedCol) || selectedCol == "All Columns";
+
+            return Data.Where(item =>
+            {
+                if (item == null) return false;
+
+                if (ColumnFilterPredicate != null)
+                {
+                    return ColumnFilterPredicate(item, selectedCol ?? "All Columns", term);
+                }
+
+                if (isAll)
+                {
+                    return MatchesAnyProperty(item, term);
+                }
+
+                return MatchesColumn(item, selectedCol!, term);
+            });
+        }
+    }
+
+    private bool MatchesAnyProperty(TItem item, string term)
+    {
+        var props = typeof(TItem).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        foreach (var p in props)
+        {
+            try
+            {
+                var val = p.GetValue(item);
+                if (val == null) continue;
+
+                if (val is string s)
+                {
+                    if (s.Contains(term, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                else if (val is bool b)
+                {
+                    var boolStr = b ? "active" : "disabled";
+                    if (boolStr.Contains(term, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                else if (val.GetType().IsClass && val.GetType() != typeof(string))
+                {
+                    var subProps = val.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    foreach (var sp in subProps)
+                    {
+                        if (sp.PropertyType == typeof(string) || sp.PropertyType.IsValueType)
+                        {
+                            var subVal = sp.GetValue(val)?.ToString();
+                            if (!string.IsNullOrEmpty(subVal) && subVal.Contains(term, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    var valStr = val.ToString();
+                    if (!string.IsNullOrEmpty(valStr) && valStr.Contains(term, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch { }
+        }
+        return false;
+    }
+
+    private bool MatchesColumn(TItem item, string columnName, string term)
+    {
+        var cleanCol = columnName.Replace(" ", "").Replace(".", "").Replace("_", "").ToLowerInvariant();
+        var props = typeof(TItem).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
+        var matchedProp = props.FirstOrDefault(p =>
+            p.Name.Equals(cleanCol, StringComparison.OrdinalIgnoreCase) ||
+            cleanCol.Contains(p.Name.ToLowerInvariant()) ||
+            p.Name.ToLowerInvariant().Contains(cleanCol));
+
+        if (matchedProp != null)
+        {
+            try
+            {
+                var val = matchedProp.GetValue(item);
+                if (val != null)
+                {
+                    if (val is bool b)
+                    {
+                        var statusStr = b ? "active" : "disabled";
+                        if (statusStr.Contains(term, StringComparison.OrdinalIgnoreCase)) return true;
+                    }
+                    else if (val.GetType().IsClass && val.GetType() != typeof(string))
+                    {
+                        var subProps = val.GetType().GetProperties();
+                        foreach (var sp in subProps)
+                        {
+                            var subVal = sp.GetValue(val)?.ToString();
+                            if (!string.IsNullOrEmpty(subVal) && subVal.Contains(term, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var str = val.ToString();
+                        if (!string.IsNullOrEmpty(str) && str.Contains(term, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        foreach (var p in props)
+        {
+            if (p.PropertyType.IsClass && p.PropertyType != typeof(string))
+            {
+                var pName = p.Name.ToLowerInvariant();
+                if (cleanCol.Contains(pName) || pName.Contains(cleanCol))
+                {
+                    try
+                    {
+                        var obj = p.GetValue(item);
+                        if (obj != null)
+                        {
+                            var subProps = obj.GetType().GetProperties();
+                            foreach (var sp in subProps)
+                            {
+                                var sVal = sp.GetValue(obj)?.ToString();
+                                if (!string.IsNullOrEmpty(sVal) && sVal.Contains(term, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        if (cleanCol.Contains("status"))
+        {
+            var activeProp = props.FirstOrDefault(p => p.Name.Equals("IsActive", StringComparison.OrdinalIgnoreCase));
+            if (activeProp != null)
+            {
+                var bVal = activeProp.GetValue(item);
+                if (bVal is bool b)
+                {
+                    var s = b ? "active" : "disabled";
+                    if (s.Contains(term, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private int TotalRecords => FilteredData?.Count() ?? 0;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling((double)TotalRecords / EffectivePageSize));
+    private int StartRecordNumber => TotalRecords == 0 ? 0 : (_pageIndex * EffectivePageSize) + 1;
+    private int EndRecordNumber => Math.Min((_pageIndex + 1) * EffectivePageSize, TotalRecords);
+
+    private int GetRowNumber(int visibleIndex)
+    {
+        return (_pageIndex * EffectivePageSize) + visibleIndex + 1;
+    }
+
+    private void ClearSearch()
+    {
+        _searchFilter = string.Empty;
+        _pageIndex = 0;
+    }
+
+    private void OnFilterColumnChanged(string col)
+    {
+        _selectedFilterColumn = col;
+        _pageIndex = 0;
+    }
+
+    private void OnPageIndexChanged(int newIndex)
+    {
+        _pageIndex = newIndex;
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        if (page < 0) page = 0;
+        if (page >= TotalPages) page = Math.Max(0, TotalPages - 1);
+
+        _pageIndex = page;
+        StateHasChanged();
+    }
+
+    private void HandlePageSizeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int newSize) && newSize > 0)
+        {
+            _customPageSize = newSize;
+            _pageIndex = 0;
+            StateHasChanged();
+        }
+    }
+
+    private IEnumerable<int> GetVisiblePageNumbers()
+    {
+        int maxButtons = 5;
+        int start = Math.Max(1, (_pageIndex + 1) - 2);
+        int end = Math.Min(TotalPages, start + maxButtons - 1);
+        if (end - start < maxButtons - 1)
+        {
+            start = Math.Max(1, end - maxButtons + 1);
+        }
+        return Enumerable.Range(start, Math.Max(1, (end - start) + 1));
+    }
+
+    private async Task OnSelectedDataItemsChanged(IReadOnlyList<object> items)
+    {
+        SelectedDataItems = items;
+        if (SelectedDataItemsChanged.HasDelegate)
+        {
+            await SelectedDataItemsChanged.InvokeAsync(items);
+        }
+    }
+
+    private async Task HandleAddAsync()
+    {
+        try
+        {
+            if (OnAdd.HasDelegate)
+            {
+                await OnAdd.InvokeAsync();
+                await GoToLastPageAsync();
+            }
+            else if (_grid != null)
+            {
+                await _grid.StartEditNewRowAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to initialize new row in grid.");
+        }
+    }
+
+    public async Task GoToLastPageAsync()
+    {
+        var lastPage = Math.Max(0, TotalPages - 1);
+        _pageIndex = lastPage;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleDeleteAsync()
+    {
+        if (SelectedDataItems == null || !SelectedDataItems.Any()) return;
+
+        AppState.ShowConfirmationModal(
+            title: "Confirm Record Deletion",
+            message: $"Are you sure you want to delete {SelectedDataItems.Count} selected record(s)? This action directly updates the dataset.",
+            onConfirm: async () =>
+            {
+                if (OnDelete.HasDelegate)
+                {
+                    await OnDelete.InvokeAsync(SelectedDataItems);
+                }
+                else if (Data is IList<TItem> list)
+                {
+                    foreach (var item in SelectedDataItems.OfType<TItem>().ToList())
+                    {
+                        list.Remove(item);
+                    }
+                }
+
+                AppState.ShowToast($"{SelectedDataItems.Count} record(s) removed", "Rows Deleted", ToastNotificationType.Info);
+                SelectedDataItems = new List<object>();
+                if (SelectedDataItemsChanged.HasDelegate)
+                {
+                    await SelectedDataItemsChanged.InvokeAsync(SelectedDataItems);
+                }
+            },
+            confirmButtonText: "Delete Records",
+            cancelButtonText: "Cancel"
+        );
+    }
+
+    private async Task ExportToExcelAsync()
+    {
+        if (OnExport.HasDelegate)
+        {
+            await OnExport.InvokeAsync("xlsx");
+        }
+        else if (_grid != null)
+        {
+            await _grid.ExportToXlsxAsync($"{Title.Replace(" ", "_")}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+            AppState.ShowToast($"Exported {Title} to Excel", "Export Complete", ToastNotificationType.Success);
+        }
+    }
+
+    private void OpenImportModal()
+    {
+        _rawImportText = string.Empty;
+        _isImportModalOpen = true;
+    }
+
+    private async Task ProcessImportAsync()
+    {
+        _isImportModalOpen = false;
+        if (OnImport.HasDelegate)
+        {
+            await OnImport.InvokeAsync(_rawImportText);
+        }
+        AppState.ShowToast("Import payload processed successfully", "Import Data", ToastNotificationType.Success);
+    }
+
+    private async Task OnEditModelSaving(GridEditModelSavingEventArgs e)
+    {
+        if (EditModelSaving.HasDelegate)
+        {
+            await EditModelSaving.InvokeAsync(e);
+        }
+    }
+
+    private async Task OnDataItemDeleting(GridDataItemDeletingEventArgs e)
+    {
+        if (DataItemDeleting.HasDelegate)
+        {
+            await DataItemDeleting.InvokeAsync(e);
+        }
+    }
+}

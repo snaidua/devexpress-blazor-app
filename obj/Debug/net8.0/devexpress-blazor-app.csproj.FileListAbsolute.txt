@@ -201,3 +201,4 @@ E:\SNAIDUA\VS2026\repos\devexpress-blazor-app\obj\Debug\net8.0\refint\DevExpress
 E:\SNAIDUA\VS2026\repos\devexpress-blazor-app\obj\Debug\net8.0\DevExpressBlazorApp.pdb
 E:\SNAIDUA\VS2026\repos\devexpress-blazor-app\obj\Debug\net8.0\devexpress-blazor-app.genruntimeconfig.cache
 E:\SNAIDUA\VS2026\repos\devexpress-blazor-app\obj\Debug\net8.0\ref\DevExpressBlazorApp.dll
+E:\SNAIDUA\VS2026\repos\devexpress-blazor-app\obj\Debug\net8.0\devexpress-blazor-app.sourcelink.json

@@ -199,8 +199,13 @@
 
     protected override async Task OnInitializedAsync()
     {
-        AppState.OnChange += StateHasChanged;
+        AppState.OnChange += HandleAppStateChanged;
         await AppState.InitializeAsync();
+    }
+
+    private void HandleAppStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
     }
 
     private void ToggleNotifications() => _showNotificationDrawer = !_showNotificationDrawer;
@@ -242,6 +247,6 @@
 
     public void Dispose()
     {
-        AppState.OnChange -= StateHasChanged;
+        AppState.OnChange -= HandleAppStateChanged;
     }
 }

@@ -25,84 +25,65 @@
         </div>
     </div>
 
-    <!-- DxGrid User Directory -->
-    <div class="card shadow-sm border-0 p-3 bg-white">
-        <DxGrid Data="@_users"
-                KeyFieldName="Id"
-                PageSize="8"
-                ShowFilterRow="true"
-                ShowSearchBox="true"
-                CssClass="erp-grid">
-            <Columns>
-                <DxGridDataColumn FieldName="Username" Caption="Username" Width="140px">
-                    <CellDisplayTemplate>
-                        <span class="fw-bold text-dark font-monospace">@context.Value</span>
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <DxGridDataColumn FieldName="FullName" Caption="Full Name" MinWidth="180" />
-                <DxGridDataColumn FieldName="Email" Caption="Email Address" MinWidth="200" />
-                <DxGridDataColumn FieldName="Role.Name" Caption="Assigned Role" Width="180px">
-                    <CellDisplayTemplate>
-                        @{
-                            var user = (AppUser)context.DataItem;
-                        }
-                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
-                            <i class="bi bi-shield-lock me-1"></i>@(user.Role?.Name ?? "Unassigned")
-                        </span>
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <DxGridDataColumn FieldName="DefaultCompany.Code" Caption="Company" Width="120px">
-                    <CellDisplayTemplate>
-                        @{
-                            var user = (AppUser)context.DataItem;
-                        }
-                        <span class="font-monospace">@(user.DefaultCompany?.Code ?? "N/A")</span>
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <DxGridDataColumn FieldName="DefaultLocation.Code" Caption="Location" Width="120px">
-                    <CellDisplayTemplate>
-                        @{
-                            var user = (AppUser)context.DataItem;
-                        }
-                        <span class="font-monospace">@(user.DefaultLocation?.Code ?? "N/A")</span>
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <DxGridDataColumn FieldName="IsActive" Caption="Status" Width="110px">
-                    <CellDisplayTemplate>
-                        @if ((bool)context.Value)
-                        {
-                            <span class="badge bg-success">Active</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-danger">Disabled</span>
-                        }
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <DxGridDataColumn Caption="Actions" Width="140px" TextAlignment="GridTextAlignment.Center">
-                    <CellDisplayTemplate>
-                        @{
-                            var user = (AppUser)context.DataItem;
-                        }
-                        <div class="d-flex justify-content-center gap-1">
-                            <DxButton IconCssClass="bi bi-pencil-square"
-                                      RenderStyle="ButtonRenderStyle.Secondary"
-                                      RenderStyleMode="ButtonRenderStyleMode.Text"
-                                      SizeMode="SizeMode.Small"
-                                      Click="@(() => OpenEditModal(user))"
-                                      aria-label="Edit User" />
-                            <DxButton IconCssClass="bi bi-trash text-danger"
-                                      RenderStyle="ButtonRenderStyle.Secondary"
-                                      RenderStyleMode="ButtonRenderStyleMode.Text"
-                                      SizeMode="SizeMode.Small"
-                                      Click="@(() => ConfirmDeleteUser(user))"
-                                      aria-label="Delete User" />
-                        </div>
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-            </Columns>
-        </DxGrid>
-    </div>
+    <!-- Shared Excel-Styled ERP Grid with Toolbar, In-Cell Edit, Row Numbers & Multi-Selection -->
+    <ErpGrid TItem="AppUser"
+             Data="@_users"
+             KeyFieldName="Id"
+             Title="Enterprise User Directory"
+             RowsCount="10"
+             ColumnHeadings="@_userColumns"
+             IsEditable="true"
+             OnAdd="HandleAddNewUserRowAsync"
+             OnDelete="BulkDeleteUsersAsync"
+             EditModelSaving="OnUserEditModelSaving">
+        <Columns>
+            <DxGridDataColumn FieldName="Username" Caption="Username" Width="140px">
+                <CellDisplayTemplate>
+                    <span class="fw-bold text-dark font-monospace">@(context.Value?.ToString() ?? "")</span>
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="FullName" Caption="Full Name" MinWidth="180" />
+            <DxGridDataColumn FieldName="Email" Caption="Email Address" MinWidth="200" />
+            <DxGridDataColumn FieldName="Role.Name" Caption="Assigned Role" Width="180px">
+                <CellDisplayTemplate>
+                    @{
+                        var user = context.DataItem as AppUser;
+                    }
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                        <i class="bi bi-shield-lock me-1"></i>@(user?.Role?.Name ?? "Unassigned")
+                    </span>
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="DefaultCompany.Code" Caption="Company" Width="110px">
+                <CellDisplayTemplate>
+                    @{
+                        var user = context.DataItem as AppUser;
+                    }
+                    <span class="font-monospace">@(user?.DefaultCompany?.Code ?? "N/A")</span>
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="DefaultLocation.Code" Caption="Location" Width="110px">
+                <CellDisplayTemplate>
+                    @{
+                        var user = context.DataItem as AppUser;
+                    }
+                    <span class="font-monospace">@(user?.DefaultLocation?.Code ?? "N/A")</span>
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="IsActive" Caption="Status" Width="100px">
+                <CellDisplayTemplate>
+                    @if (context.Value is true)
+                    {
+                        <span class="badge bg-success">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-danger">Disabled</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+        </Columns>
+    </ErpGrid>
 
     <!-- Create / Edit User Modal Dialog (DxPopup) -->
     <DxPopup Visible="@_isModalOpen"
@@ -111,7 +92,8 @@
              Width="600px"
              CloseOnEscape="true"
              CloseOnOutsideClick="false"
-             ShowCloseButton="true">
+             ShowCloseButton="true"
+             ShowFooter="true">
         <BodyTemplate>
             <div class="p-3">
                 <div class="row g-3">
@@ -177,6 +159,17 @@
 </div>
 
 @code {
+    private readonly List<string> _userColumns = new()
+    {
+        "Username",
+        "Full Name",
+        "Email Address",
+        "Assigned Role",
+        "Company",
+        "Location",
+        "Status"
+    };
+
     private List<AppUser> _users = new();
     private List<AppRole> _roles = new();
     private List<AppCompany> _companies = new();
@@ -346,6 +339,136 @@
             confirmButtonText: "Deactivate",
             cancelButtonText: "Cancel"
         );
+    }
+
+    private async Task HandleAddNewUserRowAsync()
+    {
+        try
+        {
+            var defaultRole = _roles.FirstOrDefault() ?? new AppRole { Id = 1, Name = "Administrator" };
+            var defaultComp = _companies.FirstOrDefault();
+            var defaultLoc = _locations.FirstOrDefault();
+            var suffix = Random.Shared.Next(100, 999);
+
+            var newUser = new AppUser
+            {
+                Username = $"user_{suffix}",
+                FullName = "New Team Member",
+                Email = $"user_{suffix}@apex-erp.internal",
+                RoleId = defaultRole.Id,
+                DefaultCompanyId = defaultComp?.Id,
+                DefaultLocationId = defaultLoc?.Id,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            newUser.PasswordHash = PasswordHasher.HashPassword(newUser, "Initial@123");
+
+            await using var context = await DbFactory.CreateDbContextAsync();
+            context.AppUsers.Add(newUser);
+            await context.SaveChangesAsync();
+
+            // Attach navigation objects in-memory for immediate grid display
+            newUser.Role = defaultRole;
+            newUser.DefaultCompany = defaultComp;
+            newUser.DefaultLocation = defaultLoc;
+
+            // Append to active grid rows list so it appears at the bottom
+            _users.Add(newUser);
+            AppState.ShowToast($"Appended row '{newUser.Username}' at row #{_users.Count}. Click any cell to edit in-place.", "Row Appended", ToastNotificationType.Success);
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to insert new row.");
+        }
+    }
+
+    private async Task BulkDeleteUsersAsync(IReadOnlyList<object> selectedItems)
+    {
+        AppState.ShowLoading("Removing selected row(s)...");
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+            var ids = selectedItems.OfType<AppUser>().Select(u => u.Id).ToList();
+
+            foreach (var id in ids)
+            {
+                var existing = await context.AppUsers.FindAsync(id);
+                if (existing != null)
+                {
+                    context.AppUsers.Remove(existing);
+                }
+            }
+            await context.SaveChangesAsync();
+            await LoadDataAsync();
+            AppState.ShowToast($"{ids.Count} record(s) deleted from grid", "Rows Deleted", ToastNotificationType.Info);
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to delete selected rows.");
+        }
+        finally
+        {
+            AppState.HideLoading();
+        }
+    }
+
+    private async Task OnUserEditModelSaving(GridEditModelSavingEventArgs e)
+    {
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+            if (e.IsNew)
+            {
+                var newUser = (AppUser)e.EditModel;
+                if (string.IsNullOrWhiteSpace(newUser.Username))
+                {
+                    newUser.Username = "user_" + Random.Shared.Next(1000, 9999);
+                }
+                if (string.IsNullOrWhiteSpace(newUser.Email))
+                {
+                    newUser.Email = $"{newUser.Username}@apex-erp.internal";
+                }
+                if (string.IsNullOrWhiteSpace(newUser.FullName))
+                {
+                    newUser.FullName = "New Enterprise User";
+                }
+                if (newUser.RoleId == 0)
+                {
+                    newUser.RoleId = _roles.FirstOrDefault()?.Id ?? 1;
+                }
+                newUser.Role = null;
+                newUser.DefaultCompany = null;
+                newUser.DefaultLocation = null;
+                newUser.CreatedAt = DateTime.UtcNow;
+                newUser.IsActive = true;
+                newUser.PasswordHash = PasswordHasher.HashPassword(newUser, "Initial@123");
+
+                context.AppUsers.Add(newUser);
+                await context.SaveChangesAsync();
+                e.CopyChangesToDataItem();
+                await LoadDataAsync();
+                AppState.ShowToast($"New user '{newUser.Username}' added", "Row Inserted", ToastNotificationType.Success);
+            }
+            else
+            {
+                var user = (AppUser)e.EditModel;
+                var existing = await context.AppUsers.FindAsync(user.Id);
+                if (existing != null)
+                {
+                    existing.Username = user.Username;
+                    existing.FullName = user.FullName;
+                    existing.Email = user.Email;
+                    existing.IsActive = user.IsActive;
+                    await context.SaveChangesAsync();
+                    e.CopyChangesToDataItem();
+                    AppState.ShowToast($"Cell changes saved for '{existing.Username}'", "Cell Saved", ToastNotificationType.Success);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await AppState.HandleGlobalErrorAsync(ex, "Failed to save in-cell edit.");
+        }
     }
 }
 

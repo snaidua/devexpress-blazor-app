@@ -372,12 +372,33 @@ public class AppStateService : IDisposable
     {
         _sessionTimer = new Timer(_ =>
         {
-            // Ticks session duration every second
-            NotifyStateChanged();
+            try
+            {
+                NotifyStateChanged();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Session timer tick exception caught");
+            }
         }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
 
-    private void NotifyStateChanged() => OnChange?.Invoke();
+    private void NotifyStateChanged()
+    {
+        if (OnChange == null) return;
+
+        foreach (var handler in OnChange.GetInvocationList().Cast<Action>())
+        {
+            try
+            {
+                handler.Invoke();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Exception in AppState OnChange subscriber");
+            }
+        }
+    }
 
     public void Dispose()
     {
