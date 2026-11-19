@@ -100,7 +100,7 @@
         <DxGrid @ref="_grid"
                 Data="@FilteredData"
                 KeyFieldName="@KeyFieldName"
-                EditMode="@(IsEditable ? GridEditMode.EditCell : GridEditMode.EditRow)"
+                EditMode="@(IsEditable ? GridEditMode.EditCell : GridEditMode.None)"
                 SelectionMode="GridSelectionMode.Multiple"
                 SelectAllCheckboxMode="GridSelectAllCheckboxMode.AllPages"
                 SelectedDataItems="@SelectedDataItems"
@@ -109,6 +109,7 @@
                 ShowSearchBox="false"
                 PageSize="@EffectivePageSize"
                 PageIndex="@_pageIndex"
+                PagerVisible="false"
                 PageIndexChanged="@OnPageIndexChanged"
                 ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
                 CssClass="erp-excel-grid"
@@ -140,20 +141,51 @@
 
     <!-- 3. Grid Bottom Footer with Telemetry, Rows Selector & Page Navigation -->
     <div class="erp-grid-footer d-flex justify-content-between align-items-center px-3 py-2 border-top bg-light">
-            @foreach (var pageNum in GetVisiblePageNumbers())
-            {
-                var pIndex = pageNum - 1;
-                <button type="button"
-                        class="btn btn-sm @(pIndex == _pageIndex ? "btn-primary fw-bold text-white" : "btn-light text-dark") px-2 py-0 border"
-                        style="min-width: 32px; height: 28px; font-size: 0.8rem;"
-                        @onclick="@(() => GoToPageAsync(pIndex))">
-                    @pageNum
-                </button>
-            }
+        <!-- Left: Telemetry & Record Counters -->
+        <div class="d-flex align-items-center gap-3">
+            <span class="small text-muted font-monospace">
+                @if (TotalRecords == 0)
+                {
+                    <span>No records match filter</span>
+                }
+                else
+                {
+                    <span>Showing <strong>@StartRecordNumber</strong> to <strong>@EndRecordNumber</strong> of <strong>@TotalRecords</strong> records</span>
+                }
+            </span>
+        </div>
+
+        <!-- Right: Page Navigation -->
+        <div class="d-flex align-items-center gap-1">
+            <!-- First Page -->
+            <DxButton IconCssClass="bi bi-chevron-double-left"
+                      RenderStyle="ButtonRenderStyle.Dark"
+                      RenderStyleMode="ButtonRenderStyleMode.Text"
+                      SizeMode="SizeMode.Small"
+                      Enabled="@(_pageIndex > 0)"
+                      Tooltip="First Page"
+                      Click="@(() => GoToPageAsync(0))"
+                      aria-label="First Page" />
+
+            <!-- Previous Page -->
+            <DxButton IconCssClass="bi bi-chevron-left"
+                      RenderStyle="ButtonRenderStyle.Dark"
+                      RenderStyleMode="ButtonRenderStyleMode.Text"
+                      SizeMode="SizeMode.Small"
+                      Enabled="@(_pageIndex > 0)"
+                      Tooltip="Previous Page"
+                      Click="@(() => GoToPageAsync(_pageIndex - 1))"
+                      aria-label="Previous Page" />
+
+            <div class="d-flex align-items-center gap-1 px-1">
+                <span class="small text-muted fw-semibold font-monospace">
+                    @(_pageIndex + 1) / @TotalPages    
+                </span>
+            </div>
 
             <!-- Next Page -->
             <DxButton IconCssClass="bi bi-chevron-right"
-                      RenderStyle="ButtonRenderStyle.Light"
+                      RenderStyle="ButtonRenderStyle.Dark"
                       RenderStyleMode="ButtonRenderStyleMode.Text"
                       SizeMode="SizeMode.Small"
                       Enabled="@(_pageIndex < TotalPages - 1)"
@@ -163,13 +195,14 @@
 
             <!-- Last Page -->
             <DxButton IconCssClass="bi bi-chevron-double-right"
-                      RenderStyle="ButtonRenderStyle.Light"
+                      RenderStyle="ButtonRenderStyle.Dark"
                       RenderStyleMode="ButtonRenderStyleMode.Text"
                       SizeMode="SizeMode.Small"
                       Enabled="@(_pageIndex < TotalPages - 1)"
                       Tooltip="Last Page"
                       Click="@(() => GoToPageAsync(TotalPages - 1))"
                       aria-label="Last Page" />
+        </div>
     </div>
 </div>
 
@@ -260,7 +293,7 @@
 
     private int RowHeightPx => 38;
     private int HeaderHeightPx => 38;
-    private int FixedGridHeightPx => (RowsCount * RowHeightPx) + HeaderHeightPx;
+    private int FixedGridHeightPx => (RowsCount * RowHeightPx) + HeaderHeightPx + 5;
 
     private int EffectivePageSize => _customPageSize ?? (PageSize.HasValue && PageSize.Value > 0 ? PageSize.Value : RowsCount);
 
@@ -482,6 +515,13 @@
 
     private int GetRowNumber(int visibleIndex)
     {
+        // If visibleIndex is already absolute across all pages (DevExpress DxGrid standard)
+        if (visibleIndex >= _pageIndex * EffectivePageSize)
+        {
+            return visibleIndex + 1;
+        }
+
+        // If visibleIndex is page-relative (0 to EffectivePageSize - 1)
         return (_pageIndex * EffectivePageSize) + visibleIndex + 1;
     }
 
